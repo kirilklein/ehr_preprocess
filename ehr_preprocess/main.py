@@ -3,7 +3,7 @@ from os.path import dirname, join, realpath
 import hydra
 from omegaconf import DictConfig
 
-from ehr_preprocess.preprocessors import preprocessor, utils
+from ehr_preprocess.preprocessors import preprocessors, utils
 
 config_name = "config"
 base_dir = dirname(dirname(realpath(__file__)))
@@ -13,7 +13,7 @@ config_path = join(base_dir, 'configs')
 def my_app(cfg: DictConfig) -> None:
     print('config:', cfg)
     if cfg.convert_csv_to_parquet:
-        csv_to_parquet = utils.MIMIC_CSV_to_Parquet_Converter(cfg)
+        csv_to_parquet = utils.MIMIC_CSV_to_Parquet_Converter(cfg, test=False)
         csv_to_parquet()
     # hydra.utils.instantiate(cfg)
     

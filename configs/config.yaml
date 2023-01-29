@@ -5,6 +5,6 @@ paths:
 processing:
   _target_: __main__.preprocessors.MimicIII 
   _recursive_: false
-convert_csv_to_parquet: false
+convert_csv_to_parquet: true
 
    
