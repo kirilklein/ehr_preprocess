@@ -1,0 +1,56 @@
+preprocessor:
+  main_folder: foo
+  columns:
+    mandatory: [PID, TIMESTAMP, CONCEPT]
+    optional: [ADMISSION_ID, VALUE, VALUE_UNIT]
+  default_value: None
+
+concepts:
+  icd:
+    filename: Aktive_problemliste_diagnoser.csv
+    names: [PID, CONCEPT, TIMESTAMP]
+  atca:
+    filename: AdministreretMedicin.csv
+    names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT, DOSAGE]
+    usecols: [0, 1, 2, 3, 4]
+    converters: {
+      CONCEPT: {
+        _partial_: true,
+        _target_: utils.utils.prepend,
+        prepend_token: M
+      },
+    }
+  atco:
+    filename: OrdineretMedicin.csv
+    names: [PID, TIMESTAMP, DOSAGE, CONCEPT]
+    usecols: [0, 1, 4, 5]
+    converters: {
+      CONCEPT: {
+          _partial_: true,
+          _target_: utils.utils.prepend,
+          prepend_token: M
+      }, 
+    }
+
+
+info:
+  filename: Patienter_og_Koen.csv
+  names: [PID, GENDER, WEIGHT, HEIGHT, BMI]
+
+ages:
+  filename: ADT_haendelser.csv
+  names: [PID, TIMESTAMP, AGE]
+  usecols: [0, 3, 11]
+  date_columns: [TIMESTAMP]
+  converters: {
+    TIMESTAMP: {
+      _partial_: true,
+      _target_: utils.utils.slice_wrapper,
+      end: 10
+    }
+  }
+  covid_tests:
+    filename: COVID.19_positive_proevesvar.csv
+    names: [ADMISSION_ID, TIMESTAMP]
+    usecols: [2, 4]
+    date_columns: [TIMESTAMP]
