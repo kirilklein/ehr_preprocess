@@ -14,7 +14,7 @@ class ComputeromePrepocessor(BasePreprocessor):
             df = self.format(df)
             df = df.sort_values('TIMESTAMP')
 
-            self.save_concept(key, df)
+            self.to_parquet(df, f'concept.{key}.parquet')
 
     def patient_info(self):
 
@@ -24,15 +24,16 @@ class ComputeromePrepocessor(BasePreprocessor):
         # Update patients with demographics
         self.set_demographics()
 
-        info = [pat.get_data() for pat in self.patients.values()]
-        self.info = pd.DataFrame(info)
-        return self.info
+        # Convert info dict to dataframe
+        df = self.info_to_df()
+
+        self.to_parquet(df, 'patients_info.parquet')
 
     def set_demographics(self):
         demo = self.load_csv(self.config.demographics)
 
         demo.apply(lambda patient: 
-            self.patients[patient['PID']]
+            self.info.get(patient['PID'])
             .update(
                 GENDER=patient['GENDER'], 
                 WEIGHT=patient['WEIGHT'], 
@@ -55,7 +56,7 @@ class ComputeromePrepocessor(BasePreprocessor):
 
         # Update patients with birthdates
         ages.apply(lambda patient:
-            self.patients[patient['PID']]
+            self.info.get(patient['PID'])
             .update(
                 BIRTHDATE=patient['BIRTHDATE'],
             ), axis=1

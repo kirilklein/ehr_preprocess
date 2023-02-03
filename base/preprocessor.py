@@ -7,6 +7,7 @@ class BasePreprocessor():
             config, 
         ):
         self.config = config
+        self.info = {}
 
     def __call__(self):
         self.process()
@@ -22,8 +23,17 @@ class BasePreprocessor():
     def patients_info(self):
         raise NotImplementedError
 
-    def save_concept(self, key: str, df: pd.DataFrame):
-        df.to_parquet(f'concept.{key}.parquet')
+    def to_parquet(self, df: pd.DataFrame, filename: str):
+        df.to_parquet(f'{self.config.output_dir}/{filename}')
+
+    def add_patients_to_info(self, df: pd.DataFrame):
+        for pat in df['PID'].unique():
+            self.info.setdefault(pat, {})
+
+    def info_to_df(self):
+        df = pd.DataFrame.from_dict(self.info, orient="index")
+        df = df.reset_index().rename(columns={'index': 'PID'})    # Convert the PID index to PID column
+        return df
 
     def format(self, df: pd.DataFrame, dropna=True):
         # Check if all mandatory columns are present
@@ -64,5 +74,8 @@ class BasePreprocessor():
             skiprows=[0],
             header=None,
         )
+
+        # Add patients to info dict
+        self.add_patients_to_info(df)
             
         return df
