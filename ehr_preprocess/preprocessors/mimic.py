@@ -10,6 +10,7 @@ base_dir = dirname(dirname(dirname(realpath(__file__))))
 
 class BasePreprocessor():
     def __init__(self, cfg, test=False) -> None:
+        self.test = test
         self.cfg = cfg
         self.raw_data_path = cfg.paths.raw_data_path
         data_folder_name = split(self.raw_data_path)[-1]
@@ -44,6 +45,10 @@ class BasePreprocessor():
     def save_metadata(self):
         with open(join(self.processed_data_path, 'metadata.json'), 'w') as fp:
             json.dump(self.metadata_ls, fp)
+    def update_metadata(self, type, coding_system, file, prepend):
+        self.metadata_ls.append({
+            'Type':type, 'Coding_System':coding_system, 'File':file, 'Prepend':prepend
+        })
 
 class MIMIC3Preprocessor(BasePreprocessor):
     """Extracts events from MIMIC-III database and saves them in a single file."""
@@ -62,15 +67,13 @@ class MIMIC3Preprocessor(BasePreprocessor):
         self.extract_lab()
         pass
 
-    def extract_patient_info():
+    def extract_patient_info(self):
         pass
         
     def extract_lab(self):
         print("::Extract lab results")
         MIMICLabPreprocessor(self.cfg, self.test)()
-        self.metadata_ls.append({
-            'Type':'Lab', 'System':'LOINC', 'File':'lab.parquet', 'Prepend':'L'
-        })
+        self.update_metadata('Lab', 'LOINC', 'lab.parquet', 'L')
 
     def extract_diagnoses():
         pass
@@ -90,7 +93,7 @@ class MIMICLabPreprocessor(MIMIC3Preprocessor):
         df = self.load()
         df_dic = self.load_dic()
         df = self.preprocess(df, df_dic)
-        df.to_parquet(join(self.processed_data_path, 'lab.parquet'))
+        df.to_parquet(join(self.processed_data_path, 'concept.lab.parquet'), index=False)
 
     def load(self):
         df = pd.read_csv(join(self.raw_data_path, 'LABEVENTS.csv.gz'), 
@@ -114,7 +117,7 @@ class MIMICLabPreprocessor(MIMIC3Preprocessor):
         df['CONCEPT'] = df.ITEMID.map(concept_map)
         df.drop(columns=['ITEMID'], inplace=True)
         df = self.process_values(df)
-        pass
+        return df
         
     def get_concept_map(self, df_dic):
         item_code_dic = pd.Series(df_dic.LOINC_CODE.values, index=df_dic.ITEMID).to_dict()
@@ -123,32 +126,35 @@ class MIMICLabPreprocessor(MIMIC3Preprocessor):
         return {**item_code_dic, **item_name_dic}
 
     def process_values(self, df):
-        df_cont = self.process_continuous_values(df)
-        df_cat = self.process_categorical_values(df)
+        df_cont, df_cat = self.separate_continuous_categorical(df)
+        df_cont = self.process_continuous_values(df_cont)
+        df_cat = self.process_categorical_values(df_cat)
         df = pd.concat([df_cont, df_cat])
         # sort by PID and ADMISSION_ID
         df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP'], inplace=True)
         df.CONCEPT = df.CONCEPT.map(lambda x: 'L'+x)
-        df.to_parquet(join(self.processed_data_path, 'concept.lab.parquet'))
+        return df
 
-    def process_continuous_values(df):
-        df_cont = df[df['VALUENUM'].notnull()]
-        df_cont = df_cont[df_cont['VALUENUM'] >= 0]
+    def process_continuous_values(self,df_cont):
         df_cont.drop(columns=['VALUE'], inplace=True)
         df_cont.rename(columns={'VALUENUM': 'VALUE'}, inplace=True)
-        df_cont.drop(columns=['VALUE_NUM'], inplace=True)
         df_cont['VALUE_CAT'] = 'NaN'
+        df_cont = df_cont.loc[df_cont['VALUE'] >= 0].copy()
         return df_cont
 
-    def process_categorical_values(df):
-        df_cat = df[df['VALUENUM'].isnull()]
+    def process_categorical_values(self,df_cat):
         df_cat['VALUE_CAT'] = df_cat['VALUE']
-        df_cat['VALUE'] = df_cat.groupby('ITEMID')['VALUE'].transform(lambda x: x.astype('category').cat.codes)
-        df_cat.drop(columns=['VALUE_NUM'], inplace=True)
+        df_cat['VALUE'] = df_cat.groupby('CONCEPT')['VALUE'].transform(lambda x: x.astype('category').cat.codes)
+        df_cat.drop(columns=['VALUENUM'], inplace=True)
         df_cat['VALUE_UNIT'] = 'categorical'
         return df_cat
     
+    def separate_continuous_categorical(self, df):
+        df_cont = df[df['VALUENUM'].notnull()].copy()
+        df_cat = df[df['VALUENUM'].isnull()].copy()
+        del df
+        return df_cont, df_cat
+    
 if __name__ == '__main__':
     cfg = OmegaConf.load(join(base_dir, "configs", "mimic3.yaml"))
-    preprocessor = MIMIC3Preprocessor(cfg, test=True)
-    
+    MIMIC3Preprocessor(cfg, test=True)()
