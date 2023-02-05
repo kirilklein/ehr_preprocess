@@ -26,9 +26,6 @@ class BasePreprocessor():
         self.processed_data_path = join(working_data_path, 'processed', data_folder_name)
         if not os.path.exists(self.processed_data_path):
             os.makedirs(self.processed_data_path)
-        else:
-            if len(os.listdir(self.processed_data_path)) > 0:
-                utils.query_yes_no(f"Processed data folder {self.processed_data_path} already exists and contains files. Files may be overwritten. Continue?")
         if test:
             self.nrows = 1000
         else:
@@ -60,7 +57,16 @@ class MIMIC3Preprocessor(BasePreprocessor):
         print(":Extract patient info")
         self.extract_patient_info()
         print(":Extract events")
-        self.extract_events()
+        for concept_name in self.cfg.concepts:
+            save_path = join(self.processed_data_path, f'concept.{concept_name}.parquet')
+            if os.path.exists(save_path):
+                if utils.query_yes_no(f"File {save_path} already exists. Overwrite?"):
+                    extractor = getattr(self, f"extract_{concept_name}")
+                    extractor()
+                else:
+                    print(f"Skipping {concept_name}")
+            
+        print(":Save metadata")
         self.save_metadata()
 
     def extract_events(self):
@@ -75,13 +81,13 @@ class MIMIC3Preprocessor(BasePreprocessor):
         MIMICLabPreprocessor(self.cfg, self.test)()
         self.update_metadata('Lab', 'LOINC', 'lab.parquet', 'L')
 
-    def extract_diagnoses():
+    def extract_diag():
         pass
         
-    def extract_prescriptions():
+    def extract_med():
         pass
 
-    def extract_procedures():
+    def extract_pro():
         pass
 
 class MIMICLabPreprocessor(MIMIC3Preprocessor):
@@ -94,6 +100,7 @@ class MIMICLabPreprocessor(MIMIC3Preprocessor):
         df_dic = self.load_dic()
         df = self.preprocess(df, df_dic)
         df.to_parquet(join(self.processed_data_path, 'concept.lab.parquet'), index=False)
+        
 
     def load(self):
         df = pd.read_csv(join(self.raw_data_path, 'LABEVENTS.csv.gz'), 

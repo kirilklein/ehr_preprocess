@@ -6,7 +6,7 @@ preprocessor:
   default_value: None
 
 concepts:
-  icd:
+  icd: 
     filename: Aktive_problemliste_diagnoser.csv
     names: [PID, CONCEPT, TIMESTAMP]
   atca:
@@ -20,7 +20,7 @@ concepts:
         prepend_token: M
       },
     }
-  atco:
+  atco: # it's better to use descriptors such as diagnosis, because different coding systems might be used
     filename: OrdineretMedicin.csv
     names: [PID, TIMESTAMP, DOSAGE, CONCEPT]
     usecols: [0, 1, 4, 5]
