@@ -14,37 +14,34 @@ class ComputeromePrepocessor(BasePreprocessor):
             df = self.format(df)
             df = df.sort_values('TIMESTAMP')
 
-            self.to_parquet(df, f'concept.{key}.parquet')
+            self.save(df, f'concept.{key}')
 
-    def patient_info(self):
+    def patients_info(self):
 
         # Update patients with birthdates
         self.set_birthdates()
 
         # Update patients with demographics
-        self.set_demographics()
+        self.set_gender()
+
+        # Update patients with potential date of death
+        self.set_date_of_death()
 
         # Convert info dict to dataframe
         df = self.info_to_df()
 
-        self.to_parquet(df, 'patients_info.parquet')
+        self.save(df, 'patients_info')
 
-    def set_demographics(self):
-        demo = self.load_csv(self.config.demographics)
+    def set_date_of_death(self):
+        death = self.load_csv(self.config.patients_info.date_of_death)
+        self.set_patient_info(death)
 
-        demo.apply(lambda patient: 
-            self.info.get(patient['PID'])
-            .update(
-                GENDER=patient['GENDER'], 
-                WEIGHT=patient['WEIGHT'], 
-                HEIGHT=patient['HEIGHT'], 
-                BMI=patient['BMI']
-            ), axis=1
-        )
-        return demo
+    def set_gender(self):
+        demo = self.load_csv(self.config.patients_info.gender)
+        self.set_patient_info(demo)
 
     def set_birthdates(self):
-        ages_info = self.config.ages
+        ages_info = self.config.patients_info.ages
         ages = self.load_csv(ages_info)
 
         if 'covid_tests' in ages_info:
@@ -55,20 +52,14 @@ class ComputeromePrepocessor(BasePreprocessor):
         ages['BIRTHDATE'] = ages['TIMESTAMP'] - ages['AGE'].map(lambda years: pd.Timedelta(years*365.25, 'D'))  # Calculate an approximate birthdate from their current age
 
         # Update patients with birthdates
-        ages.apply(lambda patient:
-            self.info.get(patient['PID'])
-            .update(
-                BIRTHDATE=patient['BIRTHDATE'],
-            ), axis=1
-        )
-        return ages
+        self.set_patient_info(ages[['PID', 'BIRTHDATE']])
 
     def fill_with_covid_tests(self, ages: pd.DataFrame):
-        tests = self.load_csv(self.config.covid_tests).drop_duplicates('ADMISSION_ID')
+        tests = self.load_csv(self.config.patients_info.covid_tests).drop_duplicates('ADMISSION_ID')
         test_dict = {k: v for k,v in tests.values}  # Create dict of (ADMISSION_ID: timestamp)
         nan_ages = ages[ages['TIMESTAMP'].isna()]   # Get rows with missing timestamp
         new_timestamps = nan_ages['PID'].map(lambda key: test_dict.get(key))    # Map PID to covid test timestamp
-        ages.loc[new_timestamps, 'TIMESTAMP'] = new_timestamps.values           # Overwrite NaN values with covid test timestamps
+        ages.loc[new_timestamps.index, 'TIMESTAMP'] = new_timestamps.values           # Overwrite NaN values with covid test timestamps
 
         return ages
 
