@@ -129,6 +129,7 @@ class MIMICMedPreprocessor(MIMIC3Preprocessor):
             join(self.processed_data_path, f'concept.{concept_name}.parquet'), index=False)
 
     def load(self):
+        dose_val_rx_converter = lambda x: x.replace(',','.') if ',' in x else x
         df = pd.read_csv(join(self.raw_data_path, 'PRESCRIPTIONS.csv.gz'), compression='gzip', nrows=self.nrows,
                          usecols=[
             'SUBJECT_ID',
@@ -137,7 +138,8 @@ class MIMICMedPreprocessor(MIMIC3Preprocessor):
             'DOSE_VAL_RX',
             'DOSE_UNIT_RX',
             'DRUG'],
-            parse_dates=['STARTDATE']).dropna(subset=['DRUG'])
+            parse_dates=['STARTDATE'], converters={'DOSE_VAL_RX': dose_val_rx_converter}
+            ).dropna(subset=['DRUG'])
         return df
 
     def rename(self, df):
@@ -145,13 +147,9 @@ class MIMICMedPreprocessor(MIMIC3Preprocessor):
                                   'DOSE_VAL_RX': 'VALUE', 'DOSE_UNIT_RX': 'UNIT_VALUE', 'HADM_ID': 'ADMISSION_ID'})
 
     def handle_range_values(self, df):
-        """VALUE is often given as range e.g. 1-6, in this case compute mean.
-          replace , with . in VALUE"""
+        """VALUE is often given as range e.g. 1-6, in this case compute mean."""
         df = self.perform_operation_on_column(df, 'VALUE', df.VALUE.str.contains('-'), 
             lambda x: np.average(np.array(x.split('-'), dtype=float)))
-        df.VALUE = df.VALUE.astype(str)
-        df = self.perform_operation_on_column(df, 'VALUE', df.VALUE.str.contains(','), 
-            lambda x: x.replace(',', '.'))
         df.VALUE = df.VALUE.astype(float)
         return df
 
