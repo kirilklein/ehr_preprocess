@@ -1,4 +1,4 @@
-from base.preprocessor import BasePreprocessor
+from ehr_preprocess.processors.base import BasePreprocessor
 import pandas as pd
 
 
