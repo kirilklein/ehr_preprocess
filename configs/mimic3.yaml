@@ -5,12 +5,12 @@ paths:
 preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
   _recursive_: false
-convert_csv_to_parquet: true
 concepts:
   - lab
   - diag
   - pro
   - med
+test: false
   
 
    

@@ -4,3 +4,5 @@ Tables that map codes between different systems
 - NDC to ATC 
     - mapping available at: https://www.hipaaspace.com/medical-billing/crosswalk-services/ndc-to-atc-mapping/
     - alternatively: https://github.com/fabkury/ndc_map.git R script that links to the national library https://lhncbc.nlm.nih.gov/RxNav/
+- NDC.csv
+    - https://www.nber.org/research/data/national-drug-code
