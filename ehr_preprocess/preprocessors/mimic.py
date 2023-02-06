@@ -93,7 +93,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
 
     def extract_diag(self, concept_name):
         print("::Extract diagnoses")
-        MIMICDiagPreprocessor(self.cfg, self.test)(concept_name)
+        MIMICDiagProPreprocessor(self.cfg, self.test)(concept_name)
         self.update_metadata(
             'Diag', 'ICD9', f'concept.{concept_name}.parquet', 'D', [
                 'DIAGNOSES_ICD.csv.gz', 'ADMISSIONS.csv.gz'])
@@ -106,7 +106,11 @@ class MIMIC3Preprocessor(BasePreprocessor):
                 'PRESCRIPTIONS.csv.gz'])
 
     def extract_pro(self, concept_name):
-        pass
+        print("::Extract procedures")
+        MIMICDiagProPreprocessor(self.cfg, self.test)(concept_name)
+        self.update_metadata(
+            'Pro', 'ICD9', f'concept.{concept_name}.parquet', 'P', [
+                'PROCEDURES_ICD.csv.gz', 'ADMISSIONS.csv.gz'])
 
     def extract_lab(self, concept_name):
         print("::Extract lab results")
@@ -159,12 +163,12 @@ class MIMICMedPreprocessor(MIMIC3Preprocessor):
         return df
         
 
-class MIMICDiagPreprocessor(MIMIC3Preprocessor):
+class MIMICDiagProPreprocessor(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
-        super(MIMICDiagPreprocessor, self).__init__(cfg, test)
+        super(MIMICDiagProPreprocessor, self).__init__(cfg, test)
 
     def __call__(self, concept_name):
-        df = self.load()
+        df = self.load(concept_name)
         adm_dic = self.load_admission_dic()
         df['TIMESTAMP'] = df['HADM_ID'].map(adm_dic)
         df.rename(
@@ -180,9 +184,10 @@ class MIMICDiagPreprocessor(MIMIC3Preprocessor):
                 f'concept.{concept_name}.parquet'),
             index=False)
 
-    def load(self):
-        df = pd.read_csv(join(self.raw_data_path, 'DIAGNOSES_ICD.csv.gz'), compression='gzip', nrows=self.nrows,
-                         dtype={'SEQ_NUM': 'Int32'}).drop(columns=['ROW_ID'])
+    def load(self, concept_name):
+        concept_dic = {'pro':'PROCEDURES', 'diag':'DIAGNOSES'}
+        df = pd.read_csv(join(self.raw_data_path, f'{concept_dic[concept_name]}_ICD.csv.gz'), compression='gzip', 
+                nrows=self.nrows, dtype={'SEQ_NUM': 'Int32'}).drop(columns=['ROW_ID'])
         return df
 
     def load_admission_dic(self):
