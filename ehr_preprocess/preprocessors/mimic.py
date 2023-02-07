@@ -15,6 +15,7 @@ class BasePreprocessor():
         self.test = test
         self.cfg = cfg
         self.raw_data_path = cfg.paths.raw_data_path
+        self.prepends = cfg.prepends
         data_folder_name = split(self.raw_data_path)[-1]
 
         if not cfg.paths.working_data_path is None:
@@ -52,10 +53,15 @@ class BasePreprocessor():
         with open(join(self.processed_data_path, 'metadata.json'), 'w') as fp:
             json.dump(self.metadata_dic, fp)
 
-    def update_metadata(self, type, coding_system,
-                        file, prepend, src_files_ls):
+    def update_metadata(self, concept_name, coding_system, src_files_ls):
+        if concept_name!='patients_info':
+            file = f'concept.{concept_name}.parquet'
+            prepend = self.prepends[concept_name]
+        else:
+            file = 'patients_info.parquet'
+            prepend = None
         concept_dic = {
-            'Type': type, 'Coding_System': coding_system, 'Prepend': prepend, 'Source': src_files_ls
+            'Coding_System': coding_system, 'Prepend': prepend, 'Source': src_files_ls
         }
         if file not in self.metadata_dic:
             self.metadata_dic[file] = concept_dic
@@ -66,6 +72,13 @@ class MIMIC3Preprocessor(BasePreprocessor):
 
     def __init__(self, cfg, test=False):
         super(MIMIC3Preprocessor, self).__init__(cfg, test)
+        self.metadata_dic ={
+            'transfer':['', ['ADMISSIONS.csv.gz', 'PATIENTS.csv.gz']],
+            'diag': ['ICD9', ['DIAGNOSES_ICD.csv.gz', 'ADMISSIONS.csv.gz']],
+            'pro':['ICD9', ['PROCEDURES_ICD.csv.gz', 'ADMISSIONS.csv.gz']],
+            'med':['DrugName', ['PRESCRIPTIONS.csv.gz']],
+            'lab':['LOINC', ['LABEVENTS.csv.gz', 'D_LABITEMS.csv.gz']],
+        }
 
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
@@ -73,18 +86,21 @@ class MIMIC3Preprocessor(BasePreprocessor):
         self.extract_patient_info()
         print(":Extract events")
         for concept_name in self.cfg.concepts:
+            print(f"::Extract {concept_name}")
             save_path = join(
                 self.processed_data_path,
                 f'concept.{concept_name}.parquet')
-            extractor = getattr(self, f"extract_{concept_name}")
+            preprocessor = globals()[f"MIMICPreprocessor_{concept_name}"](self.cfg, self.test)
             if os.path.exists(save_path):
                 if utils.query_yes_no(
                         f"File {save_path} already exists. Overwrite?"):
-                    extractor(concept_name)
+                    preprocessor()
+                    self.update_metadata(concept_name, *self.metadata_dic[concept_name])
                 else:
                     print(f"Skipping {concept_name}")
             else:
-                extractor(concept_name)
+                preprocessor()
+                self.update_metadata(concept_name, *self.metadata_dic[concept_name])
         print(":Save metadata")
         self.save_metadata()
 
@@ -97,50 +113,64 @@ class MIMIC3Preprocessor(BasePreprocessor):
         df = df.merge(dfa[patient_cols], on=['SUBJECT_ID'], how='left')
         df = df.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
         df.to_parquet(join(self.processed_data_path, 'patients_info.parquet'), index=False)
-        self.update_metadata(
-            'PatInfo', '', f'patients_info.parquet', '', [
-                'PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
-
-    def extract_diag(self, concept_name):
-        print("::Extract diagnoses")
-        MIMICDiagProPreprocessor(self.cfg, self.test)(concept_name)
-        self.update_metadata(
-            'Diag', 'ICD9', f'concept.{concept_name}.parquet', 'D', [
-                'DIAGNOSES_ICD.csv.gz', 'ADMISSIONS.csv.gz'])
-
-    def extract_med(self, concept_name):
-        print("::Extract medications")
-        MIMICMedPreprocessor(self.cfg, self.test)(concept_name)
-        self.update_metadata(
-            'Med', 'DrugName', f'concept.{concept_name}.parquet', 'M', [
-                'PRESCRIPTIONS.csv.gz'])
-
-    def extract_pro(self, concept_name):
-        print("::Extract procedures")
-        MIMICDiagProPreprocessor(self.cfg, self.test)(concept_name)
-        self.update_metadata(
-            'Pro', 'ICD9', f'concept.{concept_name}.parquet', 'P', [
-                'PROCEDURES_ICD.csv.gz', 'ADMISSIONS.csv.gz'])
-
-    def extract_lab(self, concept_name):
-        print("::Extract lab results")
-        MIMICLabPreprocessor(self.cfg, self.test)(concept_name)
-        self.update_metadata(
-            'Lab', 'LOINC', f'concept.{concept_name}.parquet', 'L', [
-                'LABEVENTS.csv.gz', 'D_LABITEMS.csv.gz'])
+        self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
 
 
-class MIMICMedPreprocessor(MIMIC3Preprocessor):
+class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
-        super(MIMICMedPreprocessor, self).__init__(cfg, test)
+        super(MIMICPreprocessor_transfer, self).__init__(cfg, test)
+        self.concept_name = 'transfers'
+    
+    def __call__(self):
+        df = self.load()
+        df_hospital = self.get_concepts(df, 'ADMITTIME', 'DISCHTIME', 'HOSPITAL')
+        df_emergency = self.get_concepts(df, 'EDREGTIME', 'EDOUTTIME', 'EMERGENCY')
 
-    def __call__(self, concept_name):
+    def load(self):
+        df = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip', 
+            usecols=['SUBJECT_ID', 'ADMITTIME', 'DISCHTIME', 'ADMISSION_TYPE', 'EDREGTIME','EDOUTTIME'], 
+            parse_dates=['ADMITTIME', 'DISCHTIME', 'EDREGTIME','EDOUTTIME'])
+        dfp = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip',
+            usecols=['SUBJECT_ID', 'DOD'], parse_dates=['DOD']) # death date, in case no discharge date
+        df = df.merge(dfp, on='SUBJECT_ID', how='left')
+        return df
+
+    def get_length_of_stay(self, df, start_col, end_col):
+        """Get length of stay in days, or days until death, store as value"""
+        df['VALUE'] = (df[end_col] - df[start_col]).dt.days
+        mask = df.VALUE.isnull()
+        df.loc[mask, 'VALUE'] = (df.loc[mask, 'DOD'] - df.loc[mask, start_col]).dt.days
+        return df
+
+    def convert_admission_discharge_to_events(self, df, start_col, end_col, concept_name):
+        """Convert to events, store as start and end date"""
+        dfdis = df.copy(deep=True).drop(columns=[start_col])
+        df = df.rename(columns={start_col: 'TIMESTAMP'}).drop(columns=[end_col])
+        df['CONCEPT'] = f'T{concept_name}_ADMISSION'
+        dfdis = dfdis.rename(columns={end_col: 'TIMESTAMP'})
+        dfdis['CONCEPT'] = f'T{concept_name}_DISCHARGE'
+        df = pd.concat([df, dfdis], axis=0)
+        return df
+
+    def get_concepts(self, df, start_col, end_col, concept_name):
+        """Get concepts for admission and discharge, return in standard format"""
+        df = df.loc[:, ['SUBJECT_ID', start_col, end_col, 'ADMISSION_TYPE', 'DOD']]
+        df = self.get_length_of_stay(df, start_col, end_col)
+        df = self.convert_admission_discharge_to_events(df, start_col, end_col, concept_name)
+        return df
+
+class MIMICPreprocessor_med(MIMIC3Preprocessor):
+    def __init__(self, cfg, test=False):
+        super(MIMICPreprocessor_med, self).__init__(cfg, test)
+        self.concept_name = 'med'
+    
+    def __call__(self):
         df = self.load()
         df = self.rename(df)
         df = self.handle_range_values(df)
         df['CONCEPT'] = df['CONCEPT'].map(lambda x: 'M' + str(x))
         df.to_parquet(
-            join(self.processed_data_path, f'concept.{concept_name}.parquet'), index=False)
+            join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
     def load(self):
         dose_val_rx_converter = lambda x: x.replace(',','.') if ',' in x else x
@@ -173,15 +203,14 @@ class MIMICMedPreprocessor(MIMIC3Preprocessor):
         return df
         
 
-class MIMICDiagProPreprocessor(MIMIC3Preprocessor):
+class MIMICPreprocessor_pro(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
-        super(MIMICDiagProPreprocessor, self).__init__(cfg, test)
-
-    def __call__(self, concept_name):
-        df = self.load(concept_name)
+        super(MIMICPreprocessor_pro, self).__init__(cfg, test)
+        self.concept_name = 'pro'
+    def __call__(self):
+        df = self.load()
         adm_dic = self.load_admission_dic()
         df['TIMESTAMP'] = df['HADM_ID'].map(adm_dic)
-        print(df['TIMESTAMP'])
         df.rename(
             columns={
                 'SUBJECT_ID': 'PID',
@@ -192,12 +221,12 @@ class MIMICDiagProPreprocessor(MIMIC3Preprocessor):
         df.to_parquet(
             join(
                 self.processed_data_path,
-                f'concept.{concept_name}.parquet'),
+                f'concept.{self.concept_name}.parquet'),
             index=False)
 
-    def load(self, concept_name):
+    def load(self):
         concept_dic = {'pro':'PROCEDURES', 'diag':'DIAGNOSES'}
-        df = pd.read_csv(join(self.raw_data_path, f'{concept_dic[concept_name]}_ICD.csv.gz'), compression='gzip', 
+        df = pd.read_csv(join(self.raw_data_path, f'{concept_dic[self.concept_name]}_ICD.csv.gz'), compression='gzip', 
                 nrows=self.nrows, dtype={'SEQ_NUM': 'Int32'}).drop(columns=['ROW_ID'])
         return df
 
@@ -208,20 +237,26 @@ class MIMICDiagProPreprocessor(MIMIC3Preprocessor):
         adm_dic = dfa.set_index('HADM_ID').to_dict()['ADMITTIME']
         return adm_dic
 
+class MIMICPreprocessor_diag(MIMICPreprocessor_pro):
+    def __init__(self, cfg, test=False):
+        super(MIMICPreprocessor_diag, self).__init__(cfg, test)
+        self.concept_name = 'diag'
 
-class MIMICLabPreprocessor(MIMIC3Preprocessor):
+
+class MIMICPreprocessor_lab(MIMIC3Preprocessor):
 
     def __init__(self, cfg, test=False):
-        super(MIMICLabPreprocessor, self).__init__(cfg, test)
+        super(MIMICPreprocessor_lab, self).__init__(cfg, test)
+        self.concept_name = 'lab'
 
-    def __call__(self, concept_name):
+    def __call__(self):
         df = self.load()
         df_dic = self.load_dic()
         df = self.preprocess(df, df_dic)
         df.to_parquet(
             join(
                 self.processed_data_path,
-                f'concept.{concept_name}.parquet'),
+                f'concept.{self.concept_name}.parquet'),
             index=False)
 
     def load(self):
