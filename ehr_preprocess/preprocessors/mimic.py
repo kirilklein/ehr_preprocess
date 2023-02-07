@@ -44,21 +44,21 @@ class BasePreprocessor():
         }
         if os.path.exists(join(self.processed_data_path, 'metadata.json')):
             with open(join(self.processed_data_path, 'metadata.json'), 'r') as fp:
-                self.metadata_ls = json.load(fp)
+                self.metadata_dic = json.load(fp)
         else:
-            self.metadata_ls = []
+            self.metadata_dic = {}
 
     def save_metadata(self):
         with open(join(self.processed_data_path, 'metadata.json'), 'w') as fp:
-            json.dump(self.metadata_ls, fp)
+            json.dump(self.metadata_dic, fp)
 
     def update_metadata(self, type, coding_system,
                         file, prepend, src_files_ls):
         concept_dic = {
-            'Type': type, 'Coding_System': coding_system, 'File': file, 'Prepend': prepend, 'Source': src_files_ls
+            'Type': type, 'Coding_System': coding_system, 'Prepend': prepend, 'Source': src_files_ls
         }
-        if concept_dic not in self.metadata_ls:
-            self.metadata_ls.append(concept_dic)
+        if file not in self.metadata_dic:
+            self.metadata_dic[file] = concept_dic
 
 
 class MIMIC3Preprocessor(BasePreprocessor):
@@ -89,7 +89,17 @@ class MIMIC3Preprocessor(BasePreprocessor):
         self.save_metadata()
 
     def extract_patient_info(self):
-        pass
+        df = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip', nrows=10000,
+            ).drop(['ROW_ID', 'DOD_HOSP', 'DOD_SSN', 'EXPIRE_FLAG'], axis=1)
+        dfa = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip')
+        patient_cols = ['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY']
+        # merge df with dfa on subject_id and hadm_id using patient_cols
+        df = df.merge(dfa[patient_cols], on=['SUBJECT_ID'], how='left')
+        df = df.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
+        df.to_parquet(join(self.processed_data_path, 'patients_info.parquet'), index=False)
+        self.update_metadata(
+            'PatInfo', '', f'patients_info.parquet', '', [
+                'PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
 
     def extract_diag(self, concept_name):
         print("::Extract diagnoses")
@@ -171,6 +181,7 @@ class MIMICDiagProPreprocessor(MIMIC3Preprocessor):
         df = self.load(concept_name)
         adm_dic = self.load_admission_dic()
         df['TIMESTAMP'] = df['HADM_ID'].map(adm_dic)
+        print(df['TIMESTAMP'])
         df.rename(
             columns={
                 'SUBJECT_ID': 'PID',
@@ -191,7 +202,7 @@ class MIMICDiagProPreprocessor(MIMIC3Preprocessor):
         return df
 
     def load_admission_dic(self):
-        dfa = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip', nrows=self.nrows,
+        dfa = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip', 
                           parse_dates=['ADMITTIME'],
                           usecols=['HADM_ID', 'ADMITTIME'])
         adm_dic = dfa.set_index('HADM_ID').to_dict()['ADMITTIME']
