@@ -18,7 +18,8 @@
     - DOSE_VAL_RX and DOSE_UNIT_RX are used as VALUE and UNIT
     - If categorical, assign int 0, 1, 2, 3, ... to VALUE, set VALUE_UNIT to 'categorical', assign name to VALUE_CAT
     - FORM_UNIT_DISP might also be relevent (CAP, TAB, SYR, ml...)
-- concept.transfers.parquet:
+- concept.transfer.parquet:
     - Hospital, Emergency, ICU admissions and discharges
-    - Value at admission is either length of stay or time until death in days
+    - VALUE at admission is either length of stay or time until death in days
+    - VALUE_CAT for Hospital admission and discharge are the locations
 

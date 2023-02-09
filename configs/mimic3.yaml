@@ -7,10 +7,10 @@ preprocessor:
   _recursive_: false
 concepts:
   - lab
-  - diag
-  - pro
-  - med
-  - transfer
+  # - diag
+  # - pro
+  # - med
+  # - transfer
 test: false
 prepends: {lab: L, diag: D, pro: P, med: M, transfer: T}
   
