@@ -74,7 +74,8 @@ class MIMIC3Preprocessor(BasePreprocessor):
     def __init__(self, cfg, test=False):
         super(MIMIC3Preprocessor, self).__init__(cfg, test)
         self.metadata_dic ={
-            'transfer':['', ['ADMISSIONS.csv.gz', 'PATIENTS.csv.gz']],
+            'patients_info':['', ['ADMISSIONS.csv.gz', 'PATIENTS.csv.gz']],
+            'transfer':['', ['ADMISSIONS.csv.gz', 'ICUSTAYS.csv.gz']],
             'diag': ['ICD9', ['DIAGNOSES_ICD.csv.gz', 'ADMISSIONS.csv.gz']],
             'pro':['ICD9', ['PROCEDURES_ICD.csv.gz', 'ADMISSIONS.csv.gz']],
             'med':['DrugName', ['PRESCRIPTIONS.csv.gz']],
@@ -83,8 +84,9 @@ class MIMIC3Preprocessor(BasePreprocessor):
 
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
-        print(":Extract patient info")
-        self.extract_patient_info()
+        if self.cfg.extract_patients_info:
+            print(":Extract patient info")
+            self.extract_patient_info()
         print(":Extract events")
         for concept_name in self.cfg.concepts:
             print(f"::Extract {concept_name}")
@@ -106,16 +108,21 @@ class MIMIC3Preprocessor(BasePreprocessor):
         self.save_metadata()
 
     def extract_patient_info(self):
-        # TODO: take last admission for patient info, where info is present
-        patients = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip', nrows=10000,
+        patients = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip', nrows=self.nrows,
             ).drop(['ROW_ID', 'DOD_HOSP', 'DOD_SSN', 'EXPIRE_FLAG'], axis=1)
-        admissions = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip')
+        admissions = self.load_admissions()
+        last_admissions = admissions.loc[admissions.groupby('SUBJECT_ID')["ADMITTIME"].idxmax()]
         patient_cols = ['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY']
-        # merge df with dfa on subject_id and hadm_id using patient_cols
-        patients = patients.merge(admissions[patient_cols], on=['SUBJECT_ID'], how='left')
+        patients = patients.merge(last_admissions[patient_cols], on=['SUBJECT_ID'], how='left')
         patients = patients.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
         patients.to_parquet(join(self.processed_data_path, 'patients_info.parquet'), index=False)
         self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
+        
+    def load_admissions(self):
+        admissions = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip',
+            usecols=['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'ADMITTIME'],
+            parse_dates=['ADMITTIME'])
+        return admissions
 
     def sort_values(self, df):
         return df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP', 'CONCEPT'])
@@ -157,12 +164,49 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         emergency = emergency.dropna(subset=['TIMESTAMP', 'TIMESTAMP_END'], how='all')
         return emergency
     def get_icu_admissions(self):
-        df_icu = pd.read_csv(join(self.raw_data_path, 'ICUSTAYS.csv.gz'), compression='gzip',nrows=10000, 
+        df_icu = pd.read_csv(join(self.raw_data_path, 'ICUSTAYS.csv.gz'), compression='gzip',nrows=self.nrows, 
                     parse_dates=['INTIME', 'OUTTIME'], usecols=['SUBJECT_ID', 'HADM_ID', 'INTIME', 'OUTTIME'])
         df_icu.rename(columns={'INTIME': 'TIMESTAMP', 'OUTTIME': 'TIMESTAMP_END'}, inplace=True)
         df_icu['CONCEPT'] = "TICU"
         return df_icu
 
+class MIMICPreprocessor_chart(MIMIC3Preprocessor):
+    def __init__(self, cfg, test=False):
+        super(MIMICPreprocessor_chart, self).__init__(cfg, test)
+        self.concept_name = 'chart'
+        self.items_dic = self.get_items_dic()
+
+    def __call__(self):
+        out_events = self.get_outputevents()
+        in_events_mv = self.get_inputevents_mv()
+
+    def map_itemid_to_label(self, events):
+        events['CONCEPT'] = events.ITEMID.map(self.items_dic)
+        return events
+
+    def get_outputevents(self):
+        out_events = pd.read_csv(join(self.raw_data_path, 'OUTPUTEVENTS.csv.gz'), 
+            nrows=self.nrows,
+        usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEOM'])
+        out_events = out_events.rename(
+            columns={'CHARTTIME': 'TIMESTAMP', 'VALUEOM': 'VALUEUOM'})
+        return out_events
+
+    def get_inputevents(self):
+        # TODO: load both
+        in_events_mv = pd.read_csv(join(self.raw_data_path, 'INPUTEVENTS_MV.csv.gz'), 
+            nrows=self.nrows,
+            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM'])
+        
+        in_events_mv = in_events_mv.rename(columns={
+            'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE_NUM', 'AMOUNTUOM': 'VALUEUOM'})
+        return in_events_mv
+
+    def get_items_dic(self):
+        """Get dictionary that maps from ITEMID to LABLES"""
+        items_dic = pd.read_csv(join(self.raw_data_path, 'D_ITEMS.csv.gz'), nrows=self.nrows)
+        items_dic = items_dic[['LABEL', 'ITEMID']].set_index('ITEMID').to_dict()['LABEL']
+        return items_dic
 
 class MIMICPreprocessor_med(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
@@ -345,3 +389,4 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
         df_cat = df[df['VALUENUM'].isnull()].copy()
         del df
         return df_cont, df_cat
+

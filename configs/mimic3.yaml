@@ -6,11 +6,13 @@ preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
   _recursive_: false
 concepts:
-  - lab
+  # - lab
   # - diag
   # - pro
   # - med
-  - transfer
+  # - transfer
+  - chart
+extract_patient_info: false
 test: false
 prepends: {lab: L, diag: D, pro: P, med: M, transfer: T}
   
