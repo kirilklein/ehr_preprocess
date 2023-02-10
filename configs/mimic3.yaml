@@ -10,7 +10,7 @@ concepts:
   # - diag
   # - pro
   # - med
-  # - transfer
+  - transfer
 test: false
 prepends: {lab: L, diag: D, pro: P, med: M, transfer: T}
   

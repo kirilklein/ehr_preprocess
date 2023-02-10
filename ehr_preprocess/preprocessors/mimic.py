@@ -66,6 +66,7 @@ class BasePreprocessor():
         if file not in self.metadata_dic:
             self.metadata_dic[file] = concept_dic
 
+    
 
 class MIMIC3Preprocessor(BasePreprocessor):
     """Extracts events from MIMIC-III database and saves them in a single file."""
@@ -116,57 +117,52 @@ class MIMIC3Preprocessor(BasePreprocessor):
         patients.to_parquet(join(self.processed_data_path, 'patients_info.parquet'), index=False)
         self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
 
+    def sort_values(self, df):
+        return df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP', 'CONCEPT'])
 
 class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_transfer, self).__init__(cfg, test)
-        self.concept_name = 'transfers'
+        self.concept_name = 'transfer'
     
     def __call__(self):
         df = self.load()
-        df_hospital = self.convert_to_concepts(df, 'ADMITTIME', 'DISCHTIME', 'HOSPITAL')
-        df_emergency = self.convert_to_concepts(df, 'EDREGTIME', 'EDOUTTIME', 'EMERGENCY')
-        df_hospital = df_hospital.drop(columns=['DEATHTIME', 'EDREGTIME', 'EDOUTTIME'])
-        df_emergency = df_emergency.drop(columns=['DEATHTIME', 'ADMITTIME', 'DISCHTIME'])
-        print(df_emergency)
+        hospital = self.select_hospital_admissions(df)
+        emergency = self.select_emergency_admissions(df)
+        icu = self.get_icu_admissions()
+        df = pd.concat([hospital, emergency, icu])
+        df.rename(columns={'SUBJECT_ID':'PID', 'HADM_ID':'ADMISSION_ID'}, inplace=True)
+        df = self.sort_values(df)
+        df.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
     def load(self):
         df = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip', 
             usecols=['SUBJECT_ID', 'HADM_ID','ADMITTIME', 'DISCHTIME','DEATHTIME',
-                'ADMISSION_LOCATION', 'DISCHARGE_LOCATION',
+                'ADMISSION_LOCATION', 'DISCHARGE_LOCATION', 'ADMISSION_TYPE',
                 'EDREGTIME','EDOUTTIME'], 
             parse_dates=['ADMITTIME', 'DISCHTIME', 'EDREGTIME','EDOUTTIME', 'DEATHTIME'])
         return df
 
-    def convert_to_concepts(self, df, start_col, end_col, concept_name):
-        """Get concepts for admission and discharge, return in standard format"""
-        df = self.get_length_of_stay(df, start_col, end_col)
-        df = self.convert_admission_discharge_to_events(df, start_col, end_col, concept_name)
-        return df
+    def select_hospital_admissions(self, df):
+        hospital = df.loc[:, ['SUBJECT_ID', 'HADM_ID', 'ADMITTIME', 'DISCHTIME', 'ADMISSION_TYPE', 
+            'ADMISSION_LOCATION', 'DISCHARGE_LOCATION']]
+        hospital.rename(columns={'ADMITTIME': 'TIMESTAMP', 'DISCHTIME': 'TIMESTAMP_END'}, inplace=True)
+        hospital['CONCEPT'] = "THOSPITAL"
+        return hospital
+    def select_emergency_admissions(self, df):
+        emergency = df.loc[:, ['SUBJECT_ID', 'HADM_ID', 'EDREGTIME', 'EDOUTTIME']]
+        emergency.rename(columns={'EDREGTIME': 'TIMESTAMP', 'EDOUTTIME': 'TIMESTAMP_END'}, inplace=True)
+        emergency['CONCEPT'] = "TEMERGENCY"
+        # drop rows where both TIMESTAMP and TIMESTAMP_END are null
+        emergency = emergency.dropna(subset=['TIMESTAMP', 'TIMESTAMP_END'], how='all')
+        return emergency
+    def get_icu_admissions(self):
+        df_icu = pd.read_csv(join(self.raw_data_path, 'ICUSTAYS.csv.gz'), compression='gzip',nrows=10000, 
+                    parse_dates=['INTIME', 'OUTTIME'], usecols=['SUBJECT_ID', 'HADM_ID', 'INTIME', 'OUTTIME'])
+        df_icu.rename(columns={'INTIME': 'TIMESTAMP', 'OUTTIME': 'TIMESTAMP_END'}, inplace=True)
+        df_icu['CONCEPT'] = "TICU"
+        return df_icu
 
-    def get_length_of_stay(self, df, start_col, end_col):
-        """Get length of stay in days, or days until death, store as value"""
-        df['VALUE'] = (df[end_col] - df[start_col]).dt.days
-        mask = df.VALUE.isnull()
-        df.loc[mask, 'VALUE'] = (df.loc[mask, 'DEATHTIME'] - df.loc[mask, start_col]).dt.days # TODO: take LOS column and enumerate the different categories of admission/disca   
-        return df
-
-    def convert_admission_discharge_to_events(self, df, start_col, end_col, concept_name):
-        """Convert to events, store as start and end date"""
-        discharge = df.copy(deep=True).drop(columns=[start_col])
-        admission = df.rename(columns={start_col: 'TIMESTAMP'}).drop(columns=[end_col])
-        admission.drop(columns=['DISCHARGE_LOCATION'], inplace=True)
-        discharge.drop(columns=['ADMISSION_LOCATION'], inplace=True)
-        if concept_name=='HOSPITAL':
-            admission = admission.rename(columns={'ADMISSION_LOCATION': 'VALUE_CAT'})
-            discharge = discharge.rename(columns={'DISCHARGE_LOCATION': 'VALUE_CAT'})
-        admission['CONCEPT'] = f'T{concept_name}_ADMISSION'
-        discharge = discharge.rename(columns={end_col: 'TIMESTAMP'})
-        discharge['CONCEPT'] = f'T{concept_name}_DISCHARGE'
-        df = pd.concat([admission, discharge], axis=0)
-        return df
-
-        
 
 class MIMICPreprocessor_med(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
@@ -176,8 +172,9 @@ class MIMICPreprocessor_med(MIMIC3Preprocessor):
     def __call__(self):
         df = self.load()
         df = self.rename(df)
-        df = self.handle_range_values(df)
+        # df = self.handle_range_values(df) we will incorporate it in later preprocessing
         df['CONCEPT'] = df['CONCEPT'].map(lambda x: 'M' + str(x))
+        df = self.sort_values(df)
         df.to_parquet(
             join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
@@ -196,8 +193,8 @@ class MIMICPreprocessor_med(MIMIC3Preprocessor):
         return df
 
     def rename(self, df):
-        return df.rename(columns={'SUBJECT_ID': 'PID', 'STARTDATE': 'TIMESTAMP', 'DRUG': 'CONCEPT',
-                                  'DOSE_VAL_RX': 'VALUE', 'DOSE_UNIT_RX': 'VALUE_UNIT', 'HADM_ID': 'ADMISSION_ID'})
+        return df.rename(columns={'SUBJECT_ID': 'PID', 'STARTDATE': 'TIMESTAMP', 'ENDDATE':'TIMESTAMP_END',
+            'DRUG': 'CONCEPT', 'DOSE_VAL_RX': 'VALUE', 'DOSE_UNIT_RX': 'VALUE_UNIT', 'HADM_ID': 'ADMISSION_ID'})
 
     def handle_range_values(self, df):
         """VALUE is often given as range e.g. 1-6, in this case compute mean."""
@@ -231,6 +228,7 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
         df['CONCEPT'] = df['CONCEPT'].map(lambda x: self.prepend + str(x))
         df = df.rename(columns={'SEQ_NUM':'VALUE'})
         df['VALUE_UNIT'] = 'SEQ_NUM'
+        df = self.sort_values(df)
         df.to_parquet(
             join(
                 self.processed_data_path,
@@ -265,8 +263,14 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
 
     def __call__(self):
         df = self.load()
-        df_dic = self.load_dic()
-        df = self.preprocess(df, df_dic)
+        df = self.preprocess(df)
+        df = df.rename(
+            columns={
+                'SUBJECT_ID': 'PID',
+                'CHARTTIME': 'TIMESTAMP',
+                'VALUEUOM': 'VALUE_UNIT',
+                'HADM_ID': 'ADMISSION_ID'})
+        df = self.sort_values(df)
         df.to_parquet(
             join(
                 self.processed_data_path,
@@ -276,21 +280,33 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
     def load(self):
         df = pd.read_csv(join(self.raw_data_path, 'LABEVENTS.csv.gz'),
                          compression='gzip', nrows=self.nrows, parse_dates=['CHARTTIME'],
-                         dtype={'SUBJECT_ID': 'Int32', 'ITEMID': 'Int32', 'VALUE': 'str', 'VALUENUM': 'float32', 'VALUEUOM': 'str', 'HADM_ID': 'Int32'})
-        df = df.rename(
-            columns={
-                'SUBJECT_ID': 'PID',
-                'CHARTTIME': 'TIMESTAMP',
-                'VALUEUOM': 'VALUE_UNIT',
-                'HADM_ID': 'ADMISSION_ID'}).drop(
-            columns=[
-                'ROW_ID',
-                'FLAG'])
+                         dtype={'SUBJECT_ID': 'Int32', 'ITEMID': 'Int32', 'VALUE': 'str', 
+                            'VALUENUM': 'float32', 'VALUEUOM': 'str', 'HADM_ID': 'Int32'})
+        df = df.drop(columns=['ROW_ID','FLAG', 'VALUENUM'])
+        return df
+
+    def preprocess(self, df):
+        concept_map = self.get_concept_map()
+        df['CONCEPT'] = df.ITEMID.map(concept_map)
+        df.drop(columns=['ITEMID', ], inplace=True)
+        df.CONCEPT = df.CONCEPT.map(lambda x: 'L' + x)
         return df
 
     def load_dic(self):
         return pd.read_csv(
             join(self.raw_data_path, 'D_LABITEMS.csv.gz'), compression='gzip')
+
+    def get_concept_map(self):
+        """Map ITEMID to LOINC_CODE or LABEL if LOINC_CODE is missing"""
+        df_dic = self.load_dic()
+        df_dic = self.preprocess_dic(df_dic)
+        item_code_dic = pd.Series(
+            df_dic.LOINC_CODE.values,
+            index=df_dic.ITEMID).to_dict()
+        item_name_dic = pd.Series(df_dic[df_dic.LOINC_CODE.isna(
+        )].LABEL.values, index=df_dic[df_dic.LOINC_CODE.isna()].ITEMID).to_dict()
+        # combine dicts
+        return {**item_code_dic, **item_name_dic}
 
     def preprocess_dic(self, df_dic):
         # add more specification to SPECIMEN using the fluid column
@@ -300,29 +316,12 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
             df_dic.loc[df_dic['LABEL'].str.contains('SPECIMEN'), 'CATEGORY']
         return df_dic
 
-    def preprocess(self, df, df_dic):
-        concept_map = self.get_concept_map(df_dic)
-        df['CONCEPT'] = df.ITEMID.map(concept_map)
-        df.drop(columns=['ITEMID'], inplace=True)
-        df = self.process_values(df)
-        df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP'], inplace=True)
-        df.CONCEPT = df.CONCEPT.map(lambda x: 'L' + x)
-        return df
-
-    def get_concept_map(self, df_dic):
-        item_code_dic = pd.Series(
-            df_dic.LOINC_CODE.values,
-            index=df_dic.ITEMID).to_dict()
-        item_name_dic = pd.Series(df_dic[df_dic.LOINC_CODE.isna(
-        )].LABEL.values, index=df_dic[df_dic.LOINC_CODE.isna()].ITEMID).to_dict()
-        # combine dicts
-        return {**item_code_dic, **item_name_dic}
-
+# Below are unused functions which might be needed for further preprocessing
     def process_values(self, df):
-        # df_cont, df_cat = self.separate_continuous_categorical(df)
-        # df_cont = self.process_continuous_values(df_cont)
-        # df_cat = self.process_categorical_values(df_cat)
-        # df = pd.concat([df_cont, df_cat])
+        df_cont, df_cat = self.separate_continuous_categorical(df)
+        df_cont = self.process_continuous_values(df_cont)
+        df_cat = self.process_categorical_values(df_cat)
+        df = pd.concat([df_cont, df_cat])
         # sort by PID and ADMISSION_ID
         return df
 
