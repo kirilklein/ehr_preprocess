@@ -32,7 +32,7 @@ class BasePreprocessor():
         if not os.path.exists(self.processed_data_path):
             os.makedirs(self.processed_data_path)
         if test:
-            self.nrows = 1000
+            self.nrows = 10000
         else:
             self.nrows = None
         self.rename_dic = {
@@ -80,9 +80,11 @@ class MIMIC3Preprocessor(BasePreprocessor):
             'pro':['ICD9', ['PROCEDURES_ICD.csv.gz', 'ADMISSIONS.csv.gz']],
             'med':['DrugName', ['PRESCRIPTIONS.csv.gz']],
             'lab':['LOINC', ['LABEVENTS.csv.gz', 'D_LABITEMS.csv.gz']],
+            'event':['', ['OUTPUTEVENTS.csv.gz', 'INPUTEVENTS_MV.csv.gz', 'INPUTEVENTS_CV.csv.gz']],
+            'weight':['', ['INPUTEVENTS_MV.csv.gz']]
         }
         self.dtypes = {'SUBJECT_ID':'Int32', 'HADM_ID':'Int32', 'ICUSTAY_ID':'Int32',
-            'SEQ_NUM':'Int32'}	
+            'SEQ_NUM':'Int32', 'PATIENTWEIGHT':float}	
 
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
@@ -174,17 +176,37 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         df_icu['CONCEPT'] = "TICU"
         return df_icu
 
-class MIMICPreprocessor_chart(MIMIC3Preprocessor):
+class MIMICPreprocessor_weight(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
-        super(MIMICPreprocessor_chart, self).__init__(cfg, test)
-        self.concept_name = 'chart'
+        super(MIMICPreprocessor_weight, self).__init__(cfg, test)
+        self.concept_name = 'weight'
+    
+    def __call__(self):
+        weights = self.get_weights()
+        weights['CONCEPT'] = 'WEIGHT'
+        weights.rename(columns={'SUBJECT_ID':'PID', 'HADM_ID':'ADMISSION_ID', 
+            'PATIENTWEIGHT':'VALUE', 'STARTTIME':'TIMESTAMP'}, inplace=True)
+        weights['VALUE_UNIT'] = 'kg'
+        weights.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
+
+    def get_weights(self):
+        weights = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
+            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'PATIENTWEIGHT'],
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME'])
+        return weights
+
+class MIMICPreprocessor_event(MIMIC3Preprocessor):
+    def __init__(self, cfg, test=False):
+        super(MIMICPreprocessor_event, self).__init__(cfg, test)
+        self.concept_name = 'event'
         self.items_dic = self.get_items_dic()
 
     def __call__(self):
-        out_events = self.get_outputevents()
-        in_events_mv = self.get_inputevents('MV')
-        in_events_cv = self.get_inputevents('CV')
-        print(in_events_cv)
+        events = self.get_outputevents()
+        events = pd.concat([self.get_inputevents_mv(), self.get_inputevents_cv(), events])
+        items_dic = self.get_items_dic()
+        events = pd.merge(events, items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
+        events.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
     def map_itemid_to_label(self, events):
         events['CONCEPT'] = events.ITEMID.map(self.items_dic)
@@ -192,25 +214,32 @@ class MIMICPreprocessor_chart(MIMIC3Preprocessor):
 
     def get_outputevents(self):
         out_events = pd.read_csv(join(self.raw_data_path, 'OUTPUTEVENTS.csv.gz'), 
-            usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEOM'],
-            nrows=self.nrows, dtype=self.dtypes)
+            usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM'],
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
         out_events = out_events.rename(
             columns={'CHARTTIME': 'TIMESTAMP', 'VALUEOM': 'VALUEUOM'})
         return out_events
 
-    def get_inputevents(self, system):
+    def get_inputevents_mv(self):
         # TODO: load both
-        in_events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_{system}.csv.gz'), 
+        events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
             usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM'],
-            nrows=self.nrows, dtype=self.dtypes)
-        in_events = in_events.rename(columns={
-            'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE_NUM', 'AMOUNTUOM': 'VALUEUOM'})
-        return in_events
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'])
+        events = events.rename(columns={
+            'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
+        return events
+
+    def get_inputevents_cv(self):
+        events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_CV.csv.gz'),
+            usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM'],
+             nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
+        events = events.rename(columns={
+            'CHARTTIME': 'TIMESTAMP', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
 
     def get_items_dic(self):
         """Get dictionary that maps from ITEMID to LABLES"""
-        items_dic = pd.read_csv(join(self.raw_data_path, 'D_ITEMS.csv.gz'), nrows=self.nrows)
-        items_dic = items_dic[['LABEL', 'ITEMID']].set_index('ITEMID').to_dict()['LABEL']
+        items_dic = pd.read_csv(join(self.raw_data_path, 'D_ITEMS.csv.gz'),
+                usecols=['ITEMID', 'LABEL'], dtype=self.dtypes)
         return items_dic
 
 class MIMICPreprocessor_med(MIMIC3Preprocessor):
