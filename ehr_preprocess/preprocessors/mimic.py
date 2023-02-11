@@ -35,14 +35,6 @@ class BasePreprocessor():
             self.nrows = 10000
         else:
             self.nrows = None
-        self.rename_dic = {
-            'SUBJECT_ID': 'pid',
-            'ITEMID': 'itemid',
-            'CHARTTIME': 'timestamp',
-            'VALUE': 'value',
-            'VALUENUM': 'valuenum',
-            'VALUEUOM': 'unit'
-        }
         if os.path.exists(join(self.processed_data_path, 'metadata.json')):
             with open(join(self.processed_data_path, 'metadata.json'), 'r') as fp:
                 self.metadata_dic = json.load(fp)
@@ -86,7 +78,16 @@ class MIMIC3Preprocessor(BasePreprocessor):
         self.dtypes = {'SUBJECT_ID':'Int32', 'HADM_ID':'Int32', 'ICUSTAY_ID':'Int32',
             'SEQ_NUM':'Int32', 'PATIENTWEIGHT':float}	
         self.prepend = None
-
+        self.rename_dic = {
+            'SUBJECT_ID': 'PID',
+            'HADM_ID':'ADMISSION_ID',
+            'STARTTIME':'TIMESTAMP',
+            'ENDTIME':'TIMESTAMP_END',
+            'CHARTTIME': 'TIMESTAMP',
+            'VALUEUOM': 'VALUE_UNIT',
+            'PATIENTWEIGHT':'VALUE',
+            'LABEL':'CONCEPT'
+        }
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
         if self.cfg.extract_patients_info:
@@ -146,7 +147,7 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         emergency = self.select_emergency_admissions(df)
         icu = self.get_icu_admissions()
         df = pd.concat([hospital, emergency, icu])
-        df.rename(columns={'SUBJECT_ID':'PID', 'HADM_ID':'ADMISSION_ID'}, inplace=True)
+        df.rename(columns=self.rename_dic, inplace=True)
         df = self.sort_values(df)
         df.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
@@ -165,6 +166,7 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         hospital.rename(columns={'ADMITTIME': 'TIMESTAMP', 'DISCHTIME': 'TIMESTAMP_END'}, inplace=True)
         hospital['CONCEPT'] = "THOSPITAL"
         return hospital
+        
     def select_emergency_admissions(self, df):
         emergency = df.loc[:, ['SUBJECT_ID', 'HADM_ID', 'EDREGTIME', 'EDOUTTIME']]
         emergency.rename(columns={'EDREGTIME': 'TIMESTAMP', 'EDOUTTIME': 'TIMESTAMP_END'}, inplace=True)
@@ -190,8 +192,7 @@ class MIMICPreprocessor_weight(MIMIC3Preprocessor):
         weights = self.get_weights()
         weights['CONCEPT'] = 'WEIGHT'
         weights = self.prepend_concept(weights)
-        weights.rename(columns={'SUBJECT_ID':'PID', 'HADM_ID':'ADMISSION_ID', 
-            'PATIENTWEIGHT':'VALUE', 'STARTTIME':'TIMESTAMP'}, inplace=True)
+        weights.rename(columns=self.rename_dic, inplace=True)
         weights['VALUE_UNIT'] = 'kg'
         weights.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
@@ -211,16 +212,14 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
     def __call__(self):
         events = self.get_chartevents()
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
-        events = events.rename(columns=
-            {'SUBJECT_ID':'PID','HADM_ID':'ADMISSION_ID', 'CHARTTIME':'TIMESTAMP', 'VALUEUOM':'VALUE_UNIT', 'LABEL':'CONCEPT'})
+        events = events.rename(columns=self.rename_dic)
         events = self.prepend_concept(events)
         events = self.sort_values(events)
         events.to_parquet(join(self.processed_data_path, f'concept.chart_{self.concept_name}.parquet'), index=False)
         events = self.get_outputevents()
         events = pd.concat([self.get_inputevents_mv(), self.get_inputevents_cv(), self.get_procedureevents_mv(), events])
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
-        events = events.rename(columns=
-            {'SUBJECT_ID':'PID','HADM_ID':'ADMISSION_ID', 'CHARTTIME':'TIMESTAMP', 'VALUEUOM':'VALUE_UNIT', 'LABEL':'CONCEPT'})
+        events = events.rename(columns=self.rename_dic)
         events = self.sort_values(events)
         events = self.prepend_concept(events)
         events.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
@@ -369,12 +368,7 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
     def __call__(self):
         df = self.load()
         df = self.preprocess(df)
-        df = df.rename(
-            columns={
-                'SUBJECT_ID': 'PID',
-                'CHARTTIME': 'TIMESTAMP',
-                'VALUEUOM': 'VALUE_UNIT',
-                'HADM_ID': 'ADMISSION_ID'})
+        df = df.rename(columns=self.rename_dic)
         df = self.sort_values(df)
         df = self.prepend_concept(df)
         df.to_parquet(
@@ -394,7 +388,6 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
         concept_map = self.get_concept_map()
         df['CONCEPT'] = df.ITEMID.map(concept_map)
         df.drop(columns=['ITEMID', ], inplace=True)
-        df.CONCEPT = df.CONCEPT.map(lambda x: self.prepend + x)
         return df
 
     def load_dic(self):
