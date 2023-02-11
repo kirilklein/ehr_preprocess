@@ -11,11 +11,11 @@ concepts:
   - pro
   - med
   - transfer
-  - event
+  - chartevent
   - weight
 extract_patients_info: false
 test: false
-prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, event: 'E', weight: W, }
+prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: W, }
   
 
    

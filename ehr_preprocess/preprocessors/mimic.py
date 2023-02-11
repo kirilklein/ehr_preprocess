@@ -205,23 +205,19 @@ class MIMICPreprocessor_weight(MIMIC3Preprocessor):
 class MIMICPreprocessor_event(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_event, self).__init__(cfg, test)
-        self.concept_name = 'event'
+        self.concept_name = 'chartevent'
         self.prepend = self.cfg.prepends[self.concept_name]
         self.items_dic = self.get_items_dic()
 
     def __call__(self):
-        events = self.get_chartevents()
-        events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
-        events = events.rename(columns=self.rename_dic)
-        events = self.prepend_concept(events)
-        events = self.sort_values(events)
-        events.to_parquet(join(self.processed_data_path, f'concept.chart_{self.concept_name}.parquet'), index=False)
-        events = self.get_outputevents()
-        events = pd.concat([self.get_inputevents_mv(), self.get_inputevents_cv(), self.get_procedureevents_mv(), events])
-        events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
-        events = events.rename(columns=self.rename_dic)
-        events = self.sort_values(events)
-        events = self.prepend_concept(events)
+        events_ls = []
+        for event_type in ['chart', 'input_cv', 'input_mv', 'procedure', 'output']:
+            events =  getattr(self, f'get_{event_type}events')()
+            events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
+            events = events.rename(columns=self.rename_dic)
+            events = self.sort_values(events)
+            events_ls.append(events)
+        events = pd.concat(events_ls)
         events.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
     def map_itemid_to_label(self, events):
@@ -242,7 +238,7 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
             columns={'CHARTTIME': 'TIMESTAMP', 'VALUEOM': 'VALUEUOM'})
         return out_events
 
-    def get_inputevents_mv(self):
+    def get_input_cvevents(self):
         events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
             usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
             nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'])
@@ -250,7 +246,7 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
             'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
         return events
 
-    def get_inputevents_cv(self):
+    def get_input_mvevents(self):
         events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_CV.csv.gz'),
             usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
              nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
