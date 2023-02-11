@@ -85,6 +85,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
         }
         self.dtypes = {'SUBJECT_ID':'Int32', 'HADM_ID':'Int32', 'ICUSTAY_ID':'Int32',
             'SEQ_NUM':'Int32', 'PATIENTWEIGHT':float}	
+        self.prepend = None
 
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
@@ -130,7 +131,9 @@ class MIMIC3Preprocessor(BasePreprocessor):
 
     def sort_values(self, df):
         return df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP', 'CONCEPT'])
-
+    def prepend_concept(self, df):
+        df['CONCEPT'] = df['CONCEPT'].map(lambda x: self.prepend + str(x))
+        return df
     
 class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
@@ -181,10 +184,12 @@ class MIMICPreprocessor_weight(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_weight, self).__init__(cfg, test)
         self.concept_name = 'weight'
-    
+        self.prepend = self.cfg.prepends[self.concept_name]
+
     def __call__(self):
         weights = self.get_weights()
         weights['CONCEPT'] = 'WEIGHT'
+        weights = self.prepend_concept(weights)
         weights.rename(columns={'SUBJECT_ID':'PID', 'HADM_ID':'ADMISSION_ID', 
             'PATIENTWEIGHT':'VALUE', 'STARTTIME':'TIMESTAMP'}, inplace=True)
         weights['VALUE_UNIT'] = 'kg'
@@ -200,17 +205,24 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_event, self).__init__(cfg, test)
         self.concept_name = 'event'
+        self.prepend = self.cfg.prepends[self.concept_name]
         self.items_dic = self.get_items_dic()
 
     def __call__(self):
         events = self.get_chartevents()
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
+        events = events.rename(columns=
+            {'SUBJECT_ID':'PID','HADM_ID':'ADMISSION_ID', 'CHARTTIME':'TIMESTAMP', 'VALUEUOM':'VALUE_UNIT', 'LABEL':'CONCEPT'})
+        events = self.prepend_concept(events)
         events = self.sort_values(events)
         events.to_parquet(join(self.processed_data_path, f'concept.chart_{self.concept_name}.parquet'), index=False)
         events = self.get_outputevents()
         events = pd.concat([self.get_inputevents_mv(), self.get_inputevents_cv(), self.get_procedureevents_mv(), events])
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
+        events = events.rename(columns=
+            {'SUBJECT_ID':'PID','HADM_ID':'ADMISSION_ID', 'CHARTTIME':'TIMESTAMP', 'VALUEUOM':'VALUE_UNIT', 'LABEL':'CONCEPT'})
         events = self.sort_values(events)
+        events = self.prepend_concept(events)
         events.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
     def map_itemid_to_label(self, events):
@@ -222,6 +234,7 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
             usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],
             nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
         return events
+
     def get_outputevents(self):
         out_events = pd.read_csv(join(self.raw_data_path, 'OUTPUTEVENTS.csv.gz'), 
             usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],
@@ -264,12 +277,13 @@ class MIMICPreprocessor_med(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_med, self).__init__(cfg, test)
         self.concept_name = 'med'
+        self.prepend = self.cfg.prepends[self.concept_name]
     
     def __call__(self):
         df = self.load()
         df = self.rename(df)
         # df = self.handle_range_values(df) we will incorporate it in later preprocessing
-        df['CONCEPT'] = df['CONCEPT'].map(lambda x: 'M' + str(x))
+        df = self.prepend_concept(df)
         df = self.sort_values(df)
         df.to_parquet(
             join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
@@ -304,7 +318,7 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_pro, self).__init__(cfg, test)
         self.concept_name = 'pro'
-        self.prepend = 'P'
+        self.prepend = self.cfg.prepends[self.concept_name]
 
     def __call__(self):
         df = self.load()
@@ -316,7 +330,7 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
                 'HADM_ID': 'ADMISSION_ID',
                 'ICD9_CODE': 'CONCEPT'},
             inplace=True)
-        df['CONCEPT'] = df['CONCEPT'].map(lambda x: self.prepend + str(x))
+        df = self.prepend_concept(df)
         df = df.rename(columns={'SEQ_NUM':'VALUE'})
         df['VALUE_UNIT'] = 'SEQ_NUM'
         df = self.sort_values(df)
@@ -343,7 +357,7 @@ class MIMICPreprocessor_diag(MIMICPreprocessor_pro):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_diag, self).__init__(cfg, test)
         self.concept_name = 'diag'
-        self.prepend = 'D'
+        self.prepend = self.cfg.prepends[self.concept_name]
 
 
 class MIMICPreprocessor_lab(MIMIC3Preprocessor):
@@ -351,7 +365,7 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_lab, self).__init__(cfg, test)
         self.concept_name = 'lab'
-
+        self.prepend = self.cfg.prepends[self.concept_name]
     def __call__(self):
         df = self.load()
         df = self.preprocess(df)
@@ -362,6 +376,7 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
                 'VALUEUOM': 'VALUE_UNIT',
                 'HADM_ID': 'ADMISSION_ID'})
         df = self.sort_values(df)
+        df = self.prepend_concept(df)
         df.to_parquet(
             join(
                 self.processed_data_path,
@@ -379,7 +394,7 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
         concept_map = self.get_concept_map()
         df['CONCEPT'] = df.ITEMID.map(concept_map)
         df.drop(columns=['ITEMID', ], inplace=True)
-        df.CONCEPT = df.CONCEPT.map(lambda x: 'L' + x)
+        df.CONCEPT = df.CONCEPT.map(lambda x: self.prepend + x)
         return df
 
     def load_dic(self):
