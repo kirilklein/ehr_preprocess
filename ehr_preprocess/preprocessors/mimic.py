@@ -205,10 +205,12 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
     def __call__(self):
         events = self.get_chartevents()
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
+        events = self.sort_values(events)
         events.to_parquet(join(self.processed_data_path, f'concept.chart_{self.concept_name}.parquet'), index=False)
         events = self.get_outputevents()
-        events = pd.concat([self.get_inputevents_mv(), self.get_inputevents_cv(), events])
+        events = pd.concat([self.get_inputevents_mv(), self.get_inputevents_cv(), self.get_procedureevents_mv(), events])
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
+        events = self.sort_values(events)
         events.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
 
     def map_itemid_to_label(self, events):
@@ -229,10 +231,8 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
         return out_events
 
     def get_inputevents_mv(self):
-        # TODO: load both
         events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
-            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'
-                ],
+            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
             nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'])
         events = events.rename(columns={
             'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
@@ -244,6 +244,15 @@ class MIMICPreprocessor_event(MIMIC3Preprocessor):
              nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
         events = events.rename(columns={
             'CHARTTIME': 'TIMESTAMP', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
+
+    def get_procedureevents_mv(self):
+        events = pd.read_csv(join(self.raw_data_path, f'PROCEDUREEVENTS_MV.csv.gz'),
+            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME', 'ITEMID', 'ICUSTAY_ID',
+                'VALUE', 'VALUEUOM'],
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'])
+        events = events.rename(columns={
+            'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END'})
+        return events
 
     def get_items_dic(self):
         """Get dictionary that maps from ITEMID to LABLES"""
