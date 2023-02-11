@@ -171,7 +171,7 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         return emergency
     def get_icu_admissions(self):
         df_icu = pd.read_csv(join(self.raw_data_path, 'ICUSTAYS.csv.gz'), compression='gzip',
-                parse_dates=['INTIME', 'OUTTIME'], nrows=self.nrows, 
+                parse_dates=['INTIME', 'OUTTIME'], nrows=self.nrows, dtype=self.dtypes,
                 usecols=['SUBJECT_ID', 'HADM_ID', 'INTIME', 'OUTTIME', 'ICUSTAY_ID'])
         df_icu.rename(columns={'INTIME': 'TIMESTAMP', 'OUTTIME': 'TIMESTAMP_END'}, inplace=True)
         df_icu['CONCEPT'] = "TICU"
