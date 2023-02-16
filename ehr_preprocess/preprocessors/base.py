@@ -8,6 +8,7 @@ class BasePreprocessor():
         ):
         self.config = config
         self.info = {}
+        self.admission_info = {}
 
     def __call__(self):
         self.process()
@@ -18,57 +19,80 @@ class BasePreprocessor():
         self.patients_info()
 
     def concepts(self):
-        raise NotImplementedError
+        # Loop over all top-level concepts (diagnosis, medication, procedures, etc.)
+        for type, top_level_config in self.config.concepts.items():
+            individual_dfs = [self.load_csv(cfg) for cfg in top_level_config.values()]
+            combined = pd.concat(individual_dfs)
+            combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
+            combined = combined.sort_values('TIMESTAMP')
+
+            self.save(combined, f'concept.{type}')
 
     def patients_info(self):
-        raise NotImplementedError
+        for key, cfg in self.config.patients_info.items():
+            df = self.load_csv(cfg)
+            
+            self.set_patient_info(df)
 
-    def to_parquet(self, df: pd.DataFrame, filename: str):
-        df.to_parquet(f'{self.config.output_dir}/{filename}')
+        # Convert info dict to dataframe
+        df = self.info_to_df()
+
+        self.save(df, 'patients_info')
+
+    def set_patient_info(self, df: pd.DataFrame):
+        df = df.set_index('PID')
+        df.apply(lambda patient:
+            self.info.get(patient.name)             # patient.name is the index PID
+            .update(
+                {k: v for k,v in patient.items()}   # Add every column to patient info
+            ), axis=1
+        )
 
     def add_patients_to_info(self, df: pd.DataFrame):
         for pat in df['PID'].unique():
             self.info.setdefault(pat, {})
+
+    def add_admission_info(self, df: pd.DataFrame):
+        def extract_first(subset):
+            subset = subset.sort_values('TIMESTAMP')
+            adm = subset['ADMISSION_ID'].iloc[0]
+            pid = subset['PID'].iloc[0]
+            timestamp = subset['TIMESTAMP'].iloc[0]
+
+            if pd.isna(adm) or pd.isna(pid) or pd.isna(timestamp):
+                return
+
+            # Add admission info to admission dict
+            adm_dict = self.admission_info.setdefault(adm, {})
+            adm_dict.update(
+                PID=pid,
+                TIMESTAMP=timestamp
+            )
+            df.groupby('ADMISSION_ID').apply(extract_first)
 
     def info_to_df(self):
         df = pd.DataFrame.from_dict(self.info, orient="index")
         df = df.reset_index().rename(columns={'index': 'PID'})    # Convert the PID index to PID column
         return df
 
-    def format(self, df: pd.DataFrame, dropna=True):
-        # Check if all mandatory columns are present
-        for key in self.config.preprocessor.mandatory_columns:
-            if key not in df.columns:
-                raise ValueError(f'Missing mandatory column {key}')
-
-        # Check if all optional columns are present, if not add them
-        for column in self.config.preprocessor.optional_columns:
-            if column not in df.columns:
-                df[column] = self.config.preprocessor.default_value
-
-        # Drop rows with missing mandatory values
-        if dropna:
-            df = df[df[self.config.preprocessor.mandatory_columns].notna().all(1)]
-
-        # Reorder columns
-        order_columns = self.config.preprocessor.mandatory_columns + self.config.preprocessor.optional_columns
-        df = df[order_columns]
-
-        return df
-
-    def load_csv(self, info: dict):
-        # Instantiate potential converters
-        converters = info.get('converters')
-        if converters is not None:
-            converters = {column: instantiate(func) for column, func in converters.items()}
-
+    def load_csv(self, cfg: dict):
+        if cfg.get('converters') is not None:
+            converters = {column: instantiate(func) for column, func in cfg.get('converters').items()}
+        else: 
+            converters = None
+            
+        if cfg.get('parse_dates') is not None:
+            parse_dates = [column for column in cfg.get('parse_dates')]
+        else: 
+            parse_dates = None
         # Load csv
         df = pd.read_csv(
             # User defined
-            info['filename'],
+            f"{self.config.preprocessor.main_folder}/{cfg['filename']}",
             converters=converters,
-            usecols=info.get('usecols'),
-            names=info.get('names'),
+            usecols=cfg.get('usecols'),
+            names=cfg.get('names'),
+            parse_dates=parse_dates,
             # Defaults
             encoding='ISO-8859-1',
             skiprows=[0],
@@ -76,6 +100,21 @@ class BasePreprocessor():
         )
 
         # Add patients to info dict
-        self.add_patients_to_info(df)
+        if 'PID' in df.columns:
+            self.add_patients_to_info(df)
+            # Add admissions to admission dict
+            if 'ADMISSION_ID' in df.columns and 'TIMESTAMP' in df.columns:
+                self.add_admission_info(df)
+
+        # Apply function
+        if cfg.get('function') is not None:
+            df = instantiate(cfg['function'])(self, df)
             
         return df
+
+    def save(self, df: pd.DataFrame, filename: str):
+        if self.config.preprocessor.file_type == 'parquet':
+            df.to_parquet(f'{self.config.preprocessor.output_dir}/{filename}.parquet')
+        elif self.config.preprocessor.file_type == 'csv':
+            df.to_csv(f'{self.config.preprocessor.output_dir}/{filename}.csv', index=False)
+
