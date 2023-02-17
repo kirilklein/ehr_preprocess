@@ -11,7 +11,7 @@ config_path = join(base_dir, 'configs')
 
 @hydra.main(version_base=None, config_path=config_path, config_name=config_name)
 def my_app(cfg: DictConfig) -> None:
-    preprocessor = hydra.utils.instantiate(cfg.preprocessor, cfg=cfg, test=False)
+    preprocessor = hydra.utils.instantiate(cfg.preprocessor, cfg=cfg, test=True)
     preprocessor()
     
     

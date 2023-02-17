@@ -94,9 +94,13 @@ class MIMIC3Preprocessor(BasePreprocessor):
         }
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
+        save_path = join(self.processed_data_path, 'patients_info.parquet')
         if self.cfg.extract_patients_info:
-            print(":Extract patient info")
-            self.extract_patient_info()
+            if os.path.exists(save_path):
+                if utils.query_yes_no(
+                        f"File {save_path} already exists. Overwrite?"):
+                    print(":Extract patient info")
+                    self.extract_patient_info(save_path)
         print(":Extract events")
         for concept_name in self.cfg.concepts:
             print(f"::Extract {concept_name}")
@@ -117,7 +121,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
         print(":Save metadata")
         self.save_metadata()
 
-    def extract_patient_info(self):
+    def extract_patient_info(self, save_path):
         patients = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip', nrows=self.nrows,
             ).drop(['ROW_ID', 'DOD_HOSP', 'DOD_SSN', 'EXPIRE_FLAG'], axis=1)
         admissions = self.load_admissions()
@@ -125,7 +129,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
         patient_cols = ['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY']
         patients = patients.merge(last_admissions[patient_cols], on=['SUBJECT_ID'], how='left')
         patients = patients.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
-        pq.write_table(pa.Table.from_pandas(patients), join(self.processed_data_path, 'patients_info.parquet'))
+        pq.write_table(pa.Table.from_pandas(patients), save_path)
         self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
         
     def load_admissions(self):
