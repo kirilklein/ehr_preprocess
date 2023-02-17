@@ -4,8 +4,13 @@ from os.path import dirname, join, realpath, split
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+from tqdm import tqdm
 
 from ehr_preprocess.preprocessors import utils
+
+tqdm.pandas()
 
 base_dir = dirname(dirname(dirname(realpath(__file__))))
 
@@ -58,7 +63,6 @@ class BasePreprocessor():
         if file not in self.metadata_dic:
             self.metadata_dic[file] = concept_dic
 
-    
 
 class MIMIC3Preprocessor(BasePreprocessor):
     """Extracts events from MIMIC-III database and saves them in a single file."""
@@ -121,7 +125,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
         patient_cols = ['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY']
         patients = patients.merge(last_admissions[patient_cols], on=['SUBJECT_ID'], how='left')
         patients = patients.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
-        patients.to_parquet(join(self.processed_data_path, 'patients_info.parquet'), index=False)
+        pq.write_table(pa.Table.from_pandas(patients), join(self.processed_data_path, 'patients_info.parquet'))
         self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
         
     def load_admissions(self):
@@ -135,6 +139,8 @@ class MIMIC3Preprocessor(BasePreprocessor):
     def prepend_concept(self, df):
         df['CONCEPT'] = df['CONCEPT'].map(lambda x: self.prepend + str(x))
         return df
+    def write_concept_to_parquet(self, df, concept_name):
+        pq.write_table(pa.Table.from_pandas(df), join(self.processed_data_path, f'concept.{concept_name}.parquet'))
     
 class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
@@ -149,7 +155,7 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         df = pd.concat([hospital, emergency, icu])
         df.rename(columns=self.rename_dic, inplace=True)
         df = self.sort_values(df)
-        df.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
+        self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
         df = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip', 
@@ -194,7 +200,7 @@ class MIMICPreprocessor_weight(MIMIC3Preprocessor):
         weights = self.prepend_concept(weights)
         weights.rename(columns=self.rename_dic, inplace=True)
         weights['VALUE_UNIT'] = 'kg'
-        weights.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
+        self.write_concept_to_parquet(weights, self.concept_name)        
 
     def get_weights(self):
         weights = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
@@ -219,7 +225,7 @@ class MIMICPreprocessor_chartevent(MIMIC3Preprocessor):
             events = self.sort_values(events)
             events_ls.append(events)
         events = pd.concat(events_ls)
-        events.to_parquet(join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
+        self.write_concept_to_parquet(events, self.concept_name)
 
     def map_itemid_to_label(self, events):
         events['CONCEPT'] = events.ITEMID.map(self.items_dic)
@@ -282,8 +288,7 @@ class MIMICPreprocessor_med(MIMIC3Preprocessor):
         # df = self.handle_range_values(df) we will incorporate it in later preprocessing
         df = self.prepend_concept(df)
         df = self.sort_values(df)
-        df.to_parquet(
-            join(self.processed_data_path, f'concept.{self.concept_name}.parquet'), index=False)
+        self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
         dose_val_rx_converter = lambda x: x.replace(',','.') if ',' in x else x
@@ -331,11 +336,7 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
         df = df.rename(columns={'SEQ_NUM':'VALUE'})
         df['VALUE_UNIT'] = 'SEQ_NUM'
         df = self.sort_values(df)
-        df.to_parquet(
-            join(
-                self.processed_data_path,
-                f'concept.{self.concept_name}.parquet'),
-            index=False)
+        self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
         concept_dic = {'pro':'PROCEDURES', 'diag':'DIAGNOSES'}
@@ -369,11 +370,7 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
         df = df.rename(columns=self.rename_dic)
         df = self.sort_values(df)
         df = self.prepend_concept(df)
-        df.to_parquet(
-            join(
-                self.processed_data_path,
-                f'concept.{self.concept_name}.parquet'),
-            index=False)
+        self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
         df = pd.read_csv(join(self.raw_data_path, 'LABEVENTS.csv.gz'),
