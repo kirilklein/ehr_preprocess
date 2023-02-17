@@ -6,11 +6,9 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from tqdm import tqdm
 
 from ehr_preprocess.preprocessors import utils
 
-tqdm.pandas()
 
 base_dir = dirname(dirname(dirname(realpath(__file__))))
 
@@ -96,11 +94,13 @@ class MIMIC3Preprocessor(BasePreprocessor):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
         save_path = join(self.processed_data_path, 'patients_info.parquet')
         if self.cfg.extract_patients_info:
+            print(":Extract patient info")
             if os.path.exists(save_path):
-                if utils.query_yes_no(
-                        f"File {save_path} already exists. Overwrite?"):
-                    print(":Extract patient info")
+                if utils.query_yes_no(f"File {save_path} already exists. Overwrite?"):
                     self.extract_patient_info(save_path)
+            else:
+                self.extract_patient_info(save_path)
+
         print(":Extract events")
         for concept_name in self.cfg.concepts:
             print(f"::Extract {concept_name}")
@@ -129,6 +129,8 @@ class MIMIC3Preprocessor(BasePreprocessor):
         patient_cols = ['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY']
         patients = patients.merge(last_admissions[patient_cols], on=['SUBJECT_ID'], how='left')
         patients = patients.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
+        patients['BIRTHDATE'] = pd.to_datetime(patients['BIRTHDATE'], format='%Y-%m-%d %H:%M:%S')
+        patients['DEATHDATE'] = pd.to_datetime(patients['DEATHDATE'], format='%Y-%m-%d %H:%M:%S')
         pq.write_table(pa.Table.from_pandas(patients), save_path)
         self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
         
