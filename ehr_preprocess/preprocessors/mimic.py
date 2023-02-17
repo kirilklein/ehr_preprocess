@@ -345,9 +345,9 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
 
     def load_admission_dic(self):
         dfa = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip', 
-                          parse_dates=['ADMITTIME'],
-                          usecols=['HADM_ID', 'ADMITTIME'])
-        adm_dic = dfa.set_index('HADM_ID').to_dict()['ADMITTIME']
+                          parse_dates=['DISCHTIME'],
+                          usecols=['HADM_ID', 'DISCHTIME'])
+        adm_dic = dfa.set_index('HADM_ID').to_dict()['DISCHTIME']
         return adm_dic
 
 class MIMICPreprocessor_diag(MIMICPreprocessor_pro):
