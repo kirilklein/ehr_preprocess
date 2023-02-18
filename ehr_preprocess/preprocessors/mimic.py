@@ -120,7 +120,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
                 self.update_metadata(concept_name, *self.metadata_dic[concept_name])
         print(":Save metadata")
         self.save_metadata()
-
+    
     def extract_patient_info(self, save_path):
         patients = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip', nrows=self.nrows,
             ).drop(['ROW_ID', 'DOD_HOSP', 'DOD_SSN', 'EXPIRE_FLAG'], axis=1)
@@ -131,6 +131,7 @@ class MIMIC3Preprocessor(BasePreprocessor):
         patients = patients.rename(columns={'SUBJECT_ID':'PID', 'DOB':'BIRTHDATE','DOD':'DEATHDATE'})
         patients['BIRTHDATE'] = pd.to_datetime(patients['BIRTHDATE'], format='%Y-%m-%d %H:%M:%S')
         patients['DEATHDATE'] = pd.to_datetime(patients['DEATHDATE'], format='%Y-%m-%d %H:%M:%S')
+        patients = patients.reset_index(drop=True)
         pq.write_table(pa.Table.from_pandas(patients), save_path)
         self.update_metadata('patients_info', '',  ['PATIENTS.csv.gz', 'ADMISSIONS.csv.gz'])
         
@@ -161,6 +162,7 @@ class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
         df = pd.concat([hospital, emergency, icu])
         df.rename(columns=self.rename_dic, inplace=True)
         df = self.sort_values(df)
+        df = df.reset_index(drop=True)
         self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
@@ -206,6 +208,7 @@ class MIMICPreprocessor_weight(MIMIC3Preprocessor):
         weights = self.prepend_concept(weights)
         weights.rename(columns=self.rename_dic, inplace=True)
         weights['VALUE_UNIT'] = 'kg'
+        weights = weights.reset_index(drop=True)
         self.write_concept_to_parquet(weights, self.concept_name)        
 
     def get_weights(self):
@@ -231,6 +234,7 @@ class MIMICPreprocessor_chartevent(MIMIC3Preprocessor):
             events = self.sort_values(events)
             events_ls.append(events)
         events = pd.concat(events_ls)
+        events = events.reset_index(drop=True)
         self.write_concept_to_parquet(events, self.concept_name)
 
     def map_itemid_to_label(self, events):
@@ -294,6 +298,7 @@ class MIMICPreprocessor_med(MIMIC3Preprocessor):
         # df = self.handle_range_values(df) we will incorporate it in later preprocessing
         df = self.prepend_concept(df)
         df = self.sort_values(df)
+        df = df.reset_index(drop=True)
         self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
@@ -336,12 +341,13 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
             columns={
                 'SUBJECT_ID': 'PID',
                 'HADM_ID': 'ADMISSION_ID',
-                'ICD9_CODE': 'CONCEPT'},
+                'ICD9_CODE': 'CONCEPT',
+                'SEQ_NUM':'VALUE'},
             inplace=True)
-        df = self.prepend_concept(df)
-        df = df.rename(columns={'SEQ_NUM':'VALUE'})
         df['VALUE_UNIT'] = 'SEQ_NUM'
+        df = self.prepend_concept(df)
         df = df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP', 'VALUE'])
+        df = df.reset_index(drop=True)
         self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
@@ -374,8 +380,9 @@ class MIMICPreprocessor_lab(MIMIC3Preprocessor):
         df = self.load()
         df = self.preprocess(df)
         df = df.rename(columns=self.rename_dic)
-        df = self.sort_values(df)
         df = self.prepend_concept(df)
+        df = self.sort_values(df)
+        df = df.reset_index(drop=True)
         self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
