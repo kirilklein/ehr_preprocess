@@ -341,7 +341,7 @@ class MIMICPreprocessor_pro(MIMIC3Preprocessor):
         df = self.prepend_concept(df)
         df = df.rename(columns={'SEQ_NUM':'VALUE'})
         df['VALUE_UNIT'] = 'SEQ_NUM'
-        df = self.sort_values(df)
+        df = df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP', 'VALUE'])
         self.write_concept_to_parquet(df, self.concept_name)
 
     def load(self):
