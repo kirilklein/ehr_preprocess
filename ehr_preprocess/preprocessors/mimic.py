@@ -143,12 +143,15 @@ class MIMIC3Preprocessor(BasePreprocessor):
 
     def sort_values(self, df):
         return df.sort_values(by=['PID', 'ADMISSION_ID', 'TIMESTAMP', 'CONCEPT'])
+
     def prepend_concept(self, df):
         df['CONCEPT'] = df['CONCEPT'].map(lambda x: self.prepend + str(x))
         return df
+
     def write_concept_to_parquet(self, df, concept_name):
         pq.write_table(pa.Table.from_pandas(df), join(self.processed_data_path, f'concept.{concept_name}.parquet'))
     
+
 class MIMICPreprocessor_transfer(MIMIC3Preprocessor):
     def __init__(self, cfg, test=False):
         super(MIMICPreprocessor_transfer, self).__init__(cfg, test)
@@ -231,9 +234,10 @@ class MIMICPreprocessor_chartevent(MIMIC3Preprocessor):
             events =  get_func()
             events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
             events = events.rename(columns=self.rename_dic)
-            events = self.sort_values(events)
             events_ls.append(events)
         events = pd.concat(events_ls)
+        events = self.prepend_concept(events)
+        events = self.sort_values(events)
         events = events.reset_index(drop=True)
         self.write_concept_to_parquet(events, self.concept_name)
 
