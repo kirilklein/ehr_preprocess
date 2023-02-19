@@ -79,7 +79,6 @@ class MIMIC3Preprocessor(BasePreprocessor):
         }
         self.dtypes = {'SUBJECT_ID':'Int32', 'HADM_ID':'Int32', 'ICUSTAY_ID':'Int32',
             'SEQ_NUM':'Int32', 'PATIENTWEIGHT':float}	
-        self.prepend = None
         self.rename_dic = {
             'SUBJECT_ID': 'PID',
             'HADM_ID':'ADMISSION_ID',
@@ -90,8 +89,6 @@ class MIMIC3Preprocessor(BasePreprocessor):
             'PATIENTWEIGHT':'VALUE',
             'LABEL':'CONCEPT'
         }
-        self.concept_name = None
-        self.prepend = None
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
         save_path = join(self.processed_data_path, 'patients_info.parquet')
@@ -151,12 +148,13 @@ class MIMIC3Preprocessor(BasePreprocessor):
         return df
 
     def write_concept_to_parquet(self, df):
-        pq.write_table(pa.Table.from_pandas(df), join(self.processed_data_path, f'concept.{self.concept_name}.parquet'))
+        pq.write_table(pa.Table.from_pandas(df), join(self.processed_data_path, f'tconcept.{self.concept_name}.parquet'))
 
 
 class MIMICEventPreprocessor(MIMIC3Preprocessor):
-    def __init__(self, cfg, test=False, concept_name=None):
+    def __init__(self, cfg, concept_name, test=False,):
         super(MIMICEventPreprocessor, self).__init__(cfg, test)
+        print(concept_name)
         self.prepend = self.cfg.prepends[concept_name]
     def __call__(self, df):
         df = self.sort_values(df)
@@ -167,7 +165,7 @@ class MIMICEventPreprocessor(MIMIC3Preprocessor):
 class MIMICPreprocessor_transfer(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'transfer'
-        super(MIMICPreprocessor_transfer, self).__init__(cfg, test, self.concept_name)
+        super(MIMICPreprocessor_transfer, self).__init__(cfg, self.concept_name, test)
     
     def __call__(self):
         df = self.load()
@@ -212,7 +210,7 @@ class MIMICPreprocessor_transfer(MIMICEventPreprocessor):
 class MIMICPreprocessor_weight(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'weight'
-        super(MIMICPreprocessor_weight, self).__init__(cfg, test, self.concept_name)
+        super(MIMICPreprocessor_weight, self).__init__(cfg, self.concept_name, test)
         
     def __call__(self):
         weights = self.get_weights()
@@ -230,7 +228,7 @@ class MIMICPreprocessor_weight(MIMICEventPreprocessor):
 class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'chartevent'
-        super(MIMICPreprocessor_chartevent, self).__init__(cfg, test, self.concept_name)
+        super(MIMICPreprocessor_chartevent, self).__init__(cfg, self.concept_name, test)
         self.items_dic = self.get_items_dic()
 
     def __call__(self):
@@ -293,17 +291,17 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
                 usecols=['ITEMID', 'LABEL'], dtype=self.dtypes)
         return items_dic
 
+
 class MIMICPreprocessor_med(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'med'
-        super(MIMICPreprocessor_med, self).__init__(cfg, test, self.concept_name)
+        super(MIMICPreprocessor_med, self).__init__(cfg, self.concept_name, test)
         
     def __call__(self):
         df = self.load()
         df = self.rename(df)
         super().__call__(df)
         # df = self.handle_range_values(df) we will incorporate it in later preprocessing
-        
 
     def load(self):
         dose_val_rx_converter = lambda x: x.replace(',','.') if ',' in x else x
@@ -332,9 +330,9 @@ class MIMICPreprocessor_med(MIMICEventPreprocessor):
         
 
 class MIMICPreprocessor_pro(MIMICEventPreprocessor):
-    def __init__(self, cfg, test=False, concept_name='pro'):
+    def __init__(self, cfg, test=False, concept_name="pro",):
         self.concept_name = concept_name
-        super(MIMICPreprocessor_pro, self).__init__(cfg, test, self.concept_name)
+        super(MIMICPreprocessor_pro, self).__init__(cfg, self.concept_name, test)
         
     def __call__(self):
         df = self.load()
@@ -372,9 +370,8 @@ class MIMICPreprocessor_diag(MIMICPreprocessor_pro):
 class MIMICPreprocessor_lab(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'lab'
-        super(MIMICPreprocessor_lab, self).__init__(cfg, test, self.concept_name)
-        
-        self.prepend = self.cfg.prepends[self.concept_name]
+        super(MIMICPreprocessor_lab, self).__init__(cfg, self.concept_name, test)
+
     def __call__(self):
         df = self.load()
         df = self.preprocess(df)
