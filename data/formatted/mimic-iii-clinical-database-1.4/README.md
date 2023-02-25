@@ -6,3 +6,5 @@
 - concept.med.parquet:
     - NDC and GSN codes available, we take the drugname and will map it using drugbank later
 
+Events with missing TIMESTAMP are removed
+

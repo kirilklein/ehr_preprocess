@@ -1,3 +1,8 @@
+hydra:
+  run:
+    dir: data\formatted\mimic-iii-clinical-database-1.4 #output dir
+  job:
+    chdir: true
 paths:
   raw_data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\data\raw\mimic-iii-clinical-database-1.4
   working_data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\data\ # ensure that there is no folder with the same name as raw data in working_data_dir/processed
@@ -6,16 +11,16 @@ preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
   _recursive_: false
 concepts:
-  - lab
-  - diag
-  - pro
+  # - lab
+  # - diag
+  # - pro
   - med
-  - transfer
-  - chartevent
-  - weight
-extract_patients_info: true
+  # - transfer
+  # - chartevent
+  # - weight
+extract_patients_info: false
 test: false
-prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: W, }
+prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: C, }
   
 
    

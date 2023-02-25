@@ -34,11 +34,11 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
             'CHARTTIME': 'TIMESTAMP',
             'VALUEUOM': 'VALUE_UNIT',
             'PATIENTWEIGHT':'VALUE',
-            'LABEL':'CONCEPT'
+            'LABEL':'CONCEPT',
         }
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
-        save_path = join(self.processed_data_path, 'patients_info.parquet')
+        save_path = join(self.formatted_data_path, 'patients_info.parquet')
         if self.cfg.extract_patients_info:
             print(":Extract patient info")
             if os.path.exists(save_path):
@@ -51,7 +51,7 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
         for concept_name in self.cfg.concepts:
             print(f"::Extract {concept_name}")
             save_path = join(
-                self.processed_data_path,
+                self.formatted_data_path,
                 f'concept.{concept_name}.parquet')
             preprocessor = globals()[f"MIMICPreprocessor_{concept_name}"](self.cfg, self.test)
             if os.path.exists(save_path):
@@ -69,6 +69,7 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
     
     def extract_patient_info(self, save_path):
         patients = pd.read_csv(join(self.raw_data_path, 'PATIENTS.csv.gz'), compression='gzip', nrows=self.nrows,
+            parse_dates=['DOB', 'DOD'], infer_datetime_format=True,
             ).drop(['ROW_ID', 'DOD_HOSP', 'DOD_SSN', 'EXPIRE_FLAG'], axis=1)
         admissions = self.load_admissions()
         last_admissions = admissions.loc[admissions.groupby('SUBJECT_ID')["ADMITTIME"].idxmax()]
@@ -84,7 +85,7 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
     def load_admissions(self):
         admissions = pd.read_csv(join(self.raw_data_path, 'ADMISSIONS.csv.gz'), compression='gzip',
             usecols=['SUBJECT_ID','INSURANCE', 'LANGUAGE', 'RELIGION', 'MARITAL_STATUS', 'ETHNICITY', 'ADMITTIME'],
-            parse_dates=['ADMITTIME'], dtype=self.dtypes)
+            parse_dates=['ADMITTIME'], infer_datetime_format=True, dtype=self.dtypes)
         return admissions
     @staticmethod
     def sort_values(df):
@@ -95,7 +96,7 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
         return df
 
     def write_concept_to_parquet(self, df):
-        pq.write_table(pa.Table.from_pandas(df), join(self.processed_data_path, f'concept.{self.concept_name}.parquet'))
+        pq.write_table(pa.Table.from_pandas(df), join(self.formatted_data_path, f'concept.{self.concept_name}.parquet'))
 
 
 class MIMICEventPreprocessor(MIMIC3Preprocessor):
@@ -108,6 +109,7 @@ class MIMICEventPreprocessor(MIMIC3Preprocessor):
         df = self.sort_values(df)
         df = self.prepend_concept(df)
         df = df.reset_index(drop=True)
+        print(df.head())
         self.write_concept_to_parquet(df)
 
 class MIMICPreprocessor_transfer(MIMICEventPreprocessor):
@@ -130,6 +132,7 @@ class MIMICPreprocessor_transfer(MIMICEventPreprocessor):
                 'ADMISSION_LOCATION', 'DISCHARGE_LOCATION', 'ADMISSION_TYPE',
                 'EDREGTIME','EDOUTTIME'], 
             parse_dates=['ADMITTIME', 'DISCHTIME', 'EDREGTIME','EDOUTTIME', 'DEATHTIME'],
+            infer_datetime_format=True,
             dtype=self.dtypes)
         return df
 
@@ -169,8 +172,8 @@ class MIMICPreprocessor_weight(MIMICEventPreprocessor):
 
     def get_weights(self):
         weights = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
-            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'PATIENTWEIGHT', 'ICUSTAY_ID'],
-            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME'])
+            usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','PATIENTWEIGHT', 'ICUSTAY_ID'],
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'], infer_datetime_format=True,)
         return weights
 
 class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
@@ -197,13 +200,13 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
     def get_chartevents(self):
         events = pd.read_csv(join(self.raw_data_path, 'OUTPUTEVENTS.csv.gz'), 
             usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],
-            nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'], infer_datetime_format=True)
         return events
 
     def get_outputevents(self):
         out_events = pd.read_csv(join(self.raw_data_path, 'OUTPUTEVENTS.csv.gz'), 
             usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],
-            nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'], infer_datetime_format=True)
         out_events = out_events.rename(
             columns={'CHARTTIME': 'TIMESTAMP', 'VALUEOM': 'VALUEUOM'})
         return out_events
@@ -211,7 +214,7 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
     def get_input_cv_events(self):
         events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
             usecols=['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
-            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'])
+            nrows=self.nrows, dtype=self.dtypes, parse_dates=['STARTTIME', 'ENDTIME'], infer_datetime_format=True)
         events = events.rename(columns={
             'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
         return events
@@ -219,7 +222,7 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
     def get_input_mv_events(self):
         events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_CV.csv.gz'),
             usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
-             nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'])
+             nrows=self.nrows, dtype=self.dtypes, parse_dates=['CHARTTIME'], infer_datetime_format=True)
         events = events.rename(columns={
             'CHARTTIME': 'TIMESTAMP', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
         return events
@@ -254,10 +257,11 @@ class MIMICPreprocessor_med(MIMICEventPreprocessor):
     def load(self):
         dose_val_rx_converter = lambda x: x.replace(',','.') if ',' in x else x
         df = pd.read_csv(join(self.raw_data_path, 'PRESCRIPTIONS.csv.gz'), compression='gzip', 
-                usecols=['SUBJECT_ID', 'HADM_ID','STARTDATE','DOSE_VAL_RX','DOSE_UNIT_RX','DRUG', 'ICUSTAY_ID'],
-                parse_dates=['STARTDATE'], converters={'DOSE_VAL_RX': dose_val_rx_converter},
-                dtype=self.dtypes, nrows=self.nrows
+                usecols=['SUBJECT_ID', 'HADM_ID','STARTDATE','ENDDATE', 'DOSE_VAL_RX','DOSE_UNIT_RX','DRUG', 'ICUSTAY_ID'],
+                parse_dates=['STARTDATE', 'ENDDATE'], converters={'DOSE_VAL_RX': dose_val_rx_converter},
+                dtype=self.dtypes, nrows=self.nrows, infer_datetime_format=True
             ).dropna(subset=['DRUG'])
+        print(df.head())
         return df
     @staticmethod
     def rename(df):

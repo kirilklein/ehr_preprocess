@@ -21,22 +21,21 @@ class BasePreprocessor():
             working_data_path, 'interim', data_folder_name)
         if not os.path.exists(self.interim_data_path):
             os.makedirs(self.interim_data_path)
-        self.processed_data_path = join(
-            working_data_path, 'processed', data_folder_name)
-        if not os.path.exists(self.processed_data_path):
-            os.makedirs(self.processed_data_path)
+        self.formatted_data_path = os.getcwd()
+        if not os.path.exists(self.formatted_data_path):
+            os.makedirs(self.formatted_data_path)
         if test:
             self.nrows = 10000
         else:
             self.nrows = None
-        if os.path.exists(join(self.processed_data_path, 'metadata.json')):
-            with open(join(self.processed_data_path, 'metadata.json'), 'r') as fp:
+        if os.path.exists(join(self.formatted_data_path, 'metadata.json')):
+            with open(join(self.formatted_data_path, 'metadata.json'), 'r') as fp:
                 self.metadata_dic = json.load(fp)
         else:
             self.metadata_dic = {}
 
     def save_metadata(self):
-        with open(join(self.processed_data_path, 'metadata.json'), 'w') as fp:
+        with open(join(self.formatted_data_path, 'metadata.json'), 'w') as fp:
             json.dump(self.metadata_dic, fp)
 
     def update_metadata(self, concept_name, coding_system, src_files_ls):
