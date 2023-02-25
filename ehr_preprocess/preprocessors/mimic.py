@@ -22,10 +22,11 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
             'med':['DrugName', ['PRESCRIPTIONS.csv.gz']],
             'lab':['LOINC', ['LABEVENTS.csv.gz', 'D_LABITEMS.csv.gz']],
             'chartevent':['', ['OUTPUTEVENTS.csv.gz', 'INPUTEVENTS_MV.csv.gz', 'INPUTEVENTS_CV.csv.gz', 'CHARTEVENTS.csv.gz', 'PROCEDUREEVENTS_MV.csv.gz']],
+            'microbio':['', ['MICROBIOLOGYEVENTS.csv.gz']],
             'weight':['', ['INPUTEVENTS_MV.csv.gz']]
         }
         self.dtypes = {'SUBJECT_ID':'Int32', 'HADM_ID':'Int32', 'ICUSTAY_ID':'Int32',
-            'SEQ_NUM':'Int32', 'PATIENTWEIGHT':float}	
+            'SEQ_NUM':'Int32', 'PATIENTWEIGHT':float, }	
         self.rename_dic = {
             'SUBJECT_ID': 'PID',
             'HADM_ID':'ADMISSION_ID',
@@ -191,8 +192,7 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
                     'input_mv':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
                     'procedure':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],}
         self.usecols_dic['chart'] = self.usecols_dic['output'] 
-        self.rename_dic = {
-            'SUBJECT_ID': 'PID',
+        self.event_rename_dic = {
             'CHARTTIME': 'TIMESTAMP', 'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 
             'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUE_UNIT', 'VALUEUOM': 'VALUE_UNIT'}
     def __call__(self):
@@ -201,7 +201,7 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
                 self.get_input_cv_events, self.get_input_mv_events,
                 self.get_procedure_events]:
             events =  get_func()
-            events = events.rename(columns=self.rename_dic)
+            events = events.rename(columns=self.event_rename_dic)
             events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
             events = events.rename(columns=self.rename_dic)
             events_ls.append(events)
@@ -254,6 +254,34 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
                 usecols=['ITEMID', 'LABEL'], dtype=self.dtypes)
         return items_dic
 
+class MIMICPreprocessor_microbio(MIMICEventPreprocessor):
+    def __init__(self, cfg, test=False):
+        self.concept_name = 'microbio'
+        super(MIMICPreprocessor_microbio, self).__init__(cfg, self.concept_name, test)
+
+    def __call__(self):
+        mbio = self.load()
+        # replace nan with empty string
+        mbio.ORG_NAME.fillna('', inplace=True)
+        mbio.SPEC_TYPE_DESC.fillna('', inplace=True)
+        mbio = self.get_concept(mbio)
+        mbio = mbio.rename(columns={'CHARTTIME':'TIMESTAMP', 'INTERPRETATION':'VALUE'})
+        mbio.rename(columns=self.rename_dic, inplace=True)
+        super().__call__(mbio)
+
+
+    def load(self):
+        print("::: load MICROBIOLOGYEVENTS")
+        mbio = pd.read_csv(join(self.raw_data_path,'MICROBIOLOGYEVENTS.csv.gz'), compression='gzip', 
+                nrows=self.nrows, dtype=self.dtypes, 
+                usecols=['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'SPEC_TYPE_DESC', 'ORG_NAME', 'INTERPRETATION'])
+        return mbio
+    @staticmethod
+    def get_concept(mbio):
+        """We use the two most informative columns to get the concept"""
+        mbio['CONCEPT'] = mbio['SPEC_TYPE_DESC'] + '_' + mbio['ORG_NAME']
+        mbio.drop(['SPEC_TYPE_DESC', 'ORG_NAME'], axis=1, inplace=True)
+        return mbio
 
 class MIMICPreprocessor_med(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):

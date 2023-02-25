@@ -18,9 +18,10 @@ concepts:
   # - transfer
   - chartevent
   # - weight
+  - microbio
 extract_patients_info: false
 test: false
-prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: C, }
+prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: C, microbio: 'C'}
   
 
    
