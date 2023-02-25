@@ -5,7 +5,6 @@ hydra:
     chdir: true
 paths:
   raw_data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\data\raw\mimic-iii-clinical-database-1.4
-  working_data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\data\ # ensure that there is no folder with the same name as raw data in working_data_dir/processed
   save_name: null
 preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
@@ -14,9 +13,9 @@ concepts:
   # - lab
   # - diag
   # - pro
-  - med
+  # - med
   # - transfer
-  # - chartevent
+  - chartevent
   # - weight
 extract_patients_info: false
 test: false
