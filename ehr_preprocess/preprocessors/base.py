@@ -53,7 +53,8 @@ class BasePreprocessor():
     @staticmethod
     def drop_missing_timestamps(df):
         if 'TIMESTAMP' in df.columns:
-            df['TIMESTAMP'] = df['TIMESTAMP'].dropna()
+            print(f":::: drop missing timestamps {df['TIMESTAMP'].isnull().sum()/len(df):.2%}")
+            df = df[df['TIMESTAMP'].notnull()]
         return df
 
 

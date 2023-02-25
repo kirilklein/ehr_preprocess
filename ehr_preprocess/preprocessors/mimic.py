@@ -105,7 +105,6 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
 class MIMICEventPreprocessor(MIMIC3Preprocessor):
     def __init__(self, cfg, concept_name, test=False,):
         super(MIMICEventPreprocessor, self).__init__(cfg, test)
-        print(concept_name)
         self.prepend = self.cfg.prepends[concept_name]
     def __call__(self, df):
         df = self.drop_missing_timestamps(df)

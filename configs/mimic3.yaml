@@ -11,13 +11,13 @@ preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
   _recursive_: false
 concepts:
-  # - lab
-  # - diag
-  # - pro
-  # - med
-  # - transfer
+  - lab
+  - diag
+  - pro
+  - med
+  - transfer
   - chartevent
-  # - weight
+  - weight
   - microbio
 extract_patients_info: false
 test: false
