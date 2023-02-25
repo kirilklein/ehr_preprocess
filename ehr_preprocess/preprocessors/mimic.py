@@ -111,7 +111,6 @@ class MIMICEventPreprocessor(MIMIC3Preprocessor):
         df = self.sort_values(df)
         df = self.prepend_concept(df)
         df = df.reset_index(drop=True)
-        print(df.head())
         self.write_concept_to_parquet(df)
 
 class MIMICPreprocessor_transfer(MIMICEventPreprocessor):
@@ -188,17 +187,19 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
         super(MIMICPreprocessor_chartevent, self).__init__(cfg, self.concept_name, test)
         self.items_dic = self.get_items_dic()
         self.usecols_dic = {'output':['SUBJECT_ID', 'HADM_ID', 'CHARTTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],
-                    'input_mv':['SUBJECT_ID', 'HADM_ID', 'CHARTTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
-                    'input_cv':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
+                    'input_cv':['SUBJECT_ID', 'HADM_ID', 'CHARTTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
+                    'input_mv':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
                     'procedure':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],}
         self.usecols_dic['chart'] = self.usecols_dic['output'] 
-
+        self.rename_dic = {'CHARTTIME': 'TIMESTAMP', 'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 
+            'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUE_UNIT', 'VALUEUOM': 'VALUE_UNIT'}
     def __call__(self):
         events_ls = []
         for get_func in [self.get_chartevents, self.get_outputevents, 
                 self.get_input_cv_events, self.get_input_mv_events,
                 self.get_procedure_events]:
             events =  get_func()
+            events = events.rename(columns=self.rename_dic)
             events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
             events = events.rename(columns=self.rename_dic)
             events_ls.append(events)
@@ -221,39 +222,32 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
         out_events = pd.read_csv(join(self.raw_data_path, 'OUTPUTEVENTS.csv.gz'), 
             usecols=self.usecols_dic['output'], nrows=self.nrows, dtype=self.dtypes, 
             parse_dates=['CHARTTIME'], infer_datetime_format=True)
-        out_events = out_events.rename(
-            columns={'CHARTTIME': 'TIMESTAMP', 'VALUEOM': 'VALUEUOM'})
         return out_events
-
-    def get_input_cv_events(self):
-        print('::: load INPUTEVENTS_CV')
-        events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_CV.csv.gz'), 
-            usecols=self.usecols_dic['input_cv'], nrows=self.nrows, dtype=self.dtypes, 
-            parse_dates=['STARTTIME', 'ENDTIME'], infer_datetime_format=True)
-        events = events.rename(columns={
-            'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
-        return events
 
     def get_input_mv_events(self):
         print('::: load INPUTEVENTS_MV')
-        events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'),
+        events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_MV.csv.gz'), 
             usecols=self.usecols_dic['input_mv'], nrows=self.nrows, dtype=self.dtypes, 
-            parse_dates=['CHARTTIME'], infer_datetime_format=True)
-        events = events.rename(columns={
-            'CHARTTIME': 'TIMESTAMP', 'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUEUOM'})
+            parse_dates=['STARTTIME', 'ENDTIME'], infer_datetime_format=True)
         return events
 
-    def get_procedureevents(self):
+    def get_input_cv_events(self):
+        print('::: load INPUTEVENTS_CV')
+        events = pd.read_csv(join(self.raw_data_path, f'INPUTEVENTS_CV.csv.gz'),
+            usecols=self.usecols_dic['input_cv'], nrows=self.nrows, dtype=self.dtypes, 
+            parse_dates=['CHARTTIME'], infer_datetime_format=True)
+        return events
+
+    def get_procedure_events(self):
         print('::: load PROCEDUREEVENTS_MV')
         events = pd.read_csv(join(self.raw_data_path, f'PROCEDUREEVENTS_MV.csv.gz'),
             usecols=self.usecols_dic['procedure'], nrows=self.nrows, dtype=self.dtypes, 
             parse_dates=['STARTTIME', 'ENDTIME'], infer_datetime_format=True)
-        events = events.rename(columns={
-            'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END'})
         return events
 
     def get_items_dic(self):
         """Get dictionary that maps from ITEMID to LABLES"""
+        print('::: load D_ITEMS')
         items_dic = pd.read_csv(join(self.raw_data_path, 'D_ITEMS.csv.gz'),
                 usecols=['ITEMID', 'LABEL'], dtype=self.dtypes)
         return items_dic
@@ -278,7 +272,6 @@ class MIMICPreprocessor_med(MIMICEventPreprocessor):
                 parse_dates=['STARTDATE', 'ENDDATE'], converters={'DOSE_VAL_RX': dose_val_rx_converter},
                 dtype=self.dtypes, nrows=self.nrows, infer_datetime_format=True
             ).dropna(subset=['DRUG'])
-        print(df.head())
         return df
     @staticmethod
     def rename(df):

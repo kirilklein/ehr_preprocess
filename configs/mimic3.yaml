@@ -5,6 +5,7 @@ hydra:
     chdir: true
 paths:
   raw_data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\data\raw\mimic-iii-clinical-database-1.4
+  working_data_path: null
   save_name: null
 preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
