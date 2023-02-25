@@ -325,6 +325,7 @@ class MIMICPreprocessor_pro(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False, concept_name="pro",):
         self.concept_name = concept_name
         super(MIMICPreprocessor_pro, self).__init__(cfg, self.concept_name, test)
+        self.concept_dic = {'pro':'PROCEDURES', 'diag':'DIAGNOSES'}
     @utils.timing_function
     def __call__(self):
         df = self.load()
@@ -343,8 +344,7 @@ class MIMICPreprocessor_pro(MIMICEventPreprocessor):
 
     def load(self):
         print(f'::: load {self.concept_dic[self.concept_name]}')
-        concept_dic = {'pro':'PROCEDURES', 'diag':'DIAGNOSES'}
-        df = pd.read_csv(join(self.raw_data_path, f'{concept_dic[self.concept_name]}_ICD.csv.gz'), compression='gzip', 
+        df = pd.read_csv(join(self.raw_data_path, f'{self.concept_dic[self.concept_name]}_ICD.csv.gz'), compression='gzip', 
                 nrows=self.nrows, dtype=self.dtypes).drop(columns=['ROW_ID'])
         return df
 
