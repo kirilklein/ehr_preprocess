@@ -1,5 +1,8 @@
+import os
+import sys
+import time
+
 import pandas as pd
-import os, sys
 
 
 def query_yes_no(question, default="yes"):
