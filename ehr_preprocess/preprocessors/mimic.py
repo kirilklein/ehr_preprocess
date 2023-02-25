@@ -109,7 +109,6 @@ class MIMICEventPreprocessor(MIMIC3Preprocessor):
         self.prepend = self.cfg.prepends[concept_name]
     @utils.timing_function
     def __call__(self, df):
-        df = self.drop_missing_timestamps(df)
         df = self.sort_values(df)
         df = self.prepend_concept(df)
         df = df.reset_index(drop=True)
@@ -343,7 +342,7 @@ class MIMICPreprocessor_pro(MIMICEventPreprocessor):
         super().__call__(df)
 
     def load(self):
-        print(f'::: load {concept_dic[self.concept_name]}')
+        print(f'::: load {self.concept_dic[self.concept_name]}')
         concept_dic = {'pro':'PROCEDURES', 'diag':'DIAGNOSES'}
         df = pd.read_csv(join(self.raw_data_path, f'{concept_dic[self.concept_name]}_ICD.csv.gz'), compression='gzip', 
                 nrows=self.nrows, dtype=self.dtypes).drop(columns=['ROW_ID'])
