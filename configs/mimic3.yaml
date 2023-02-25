@@ -13,7 +13,7 @@ concepts:
   - transfer
   - chartevent
   - weight
-extract_patients_info: false
+extract_patients_info: true
 test: false
 prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: W, }
   
