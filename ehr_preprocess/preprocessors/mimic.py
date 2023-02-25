@@ -37,6 +37,7 @@ class MIMIC3Preprocessor(base.BasePreprocessor):
             'PATIENTWEIGHT':'VALUE',
             'LABEL':'CONCEPT',
         }
+    @utils.timing_function
     def __call__(self):
         print('Preprocess Mimic3 from: ', self.raw_data_path)
         save_path = join(self.formatted_data_path, 'patients_info.parquet')
@@ -106,6 +107,7 @@ class MIMICEventPreprocessor(MIMIC3Preprocessor):
     def __init__(self, cfg, concept_name, test=False,):
         super(MIMICEventPreprocessor, self).__init__(cfg, test)
         self.prepend = self.cfg.prepends[concept_name]
+    @utils.timing_function
     def __call__(self, df):
         df = self.drop_missing_timestamps(df)
         df = self.sort_values(df)
@@ -117,7 +119,7 @@ class MIMICPreprocessor_transfer(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'transfer'
         super(MIMICPreprocessor_transfer, self).__init__(cfg, self.concept_name, test)
-    
+    @utils.timing_function
     def __call__(self):
         df = self.load()
         hospital = self.select_hospital_admissions(df)
@@ -165,7 +167,7 @@ class MIMICPreprocessor_weight(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'weight'
         super(MIMICPreprocessor_weight, self).__init__(cfg, self.concept_name, test)
-        
+    @utils.timing_function
     def __call__(self):
         weights = self.get_weights()
         weights['CONCEPT'] = 'WEIGHT'
@@ -194,6 +196,7 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
         self.event_rename_dic = {
             'CHARTTIME': 'TIMESTAMP', 'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 
             'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUE_UNIT', 'VALUEUOM': 'VALUE_UNIT'}
+    @utils.timing_function
     def __call__(self):
         events_ls = []
         for get_func in [self.get_chartevents, self.get_outputevents, 
@@ -257,7 +260,7 @@ class MIMICPreprocessor_microbio(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'microbio'
         super(MIMICPreprocessor_microbio, self).__init__(cfg, self.concept_name, test)
-
+    @utils.timing_function
     def __call__(self):
         mbio = self.load()
         # replace nan with empty string
@@ -267,7 +270,6 @@ class MIMICPreprocessor_microbio(MIMICEventPreprocessor):
         mbio = mbio.rename(columns={'CHARTTIME':'TIMESTAMP', 'INTERPRETATION':'VALUE'})
         mbio.rename(columns=self.rename_dic, inplace=True)
         super().__call__(mbio)
-
 
     def load(self):
         print("::: load MICROBIOLOGYEVENTS")
@@ -286,7 +288,7 @@ class MIMICPreprocessor_med(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'med'
         super(MIMICPreprocessor_med, self).__init__(cfg, self.concept_name, test)
-        
+    @utils.timing_function        
     def __call__(self):
         df = self.load()
         df = self.rename(df)
@@ -324,7 +326,7 @@ class MIMICPreprocessor_pro(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False, concept_name="pro",):
         self.concept_name = concept_name
         super(MIMICPreprocessor_pro, self).__init__(cfg, self.concept_name, test)
-        
+    @utils.timing_function
     def __call__(self):
         df = self.load()
         adm_dic = self.load_admission_dic()
@@ -364,7 +366,7 @@ class MIMICPreprocessor_lab(MIMICEventPreprocessor):
     def __init__(self, cfg, test=False):
         self.concept_name = 'lab'
         super(MIMICPreprocessor_lab, self).__init__(cfg, self.concept_name, test)
-
+    @utils.timing_function
     def __call__(self):
         df = self.load()
         df = self.preprocess(df)

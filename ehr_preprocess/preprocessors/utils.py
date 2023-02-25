@@ -50,3 +50,15 @@ def prepend(input, prepend_token, slice_start=None, slice_end=None):
 
 def slice_wrapper(input, slice_start=None, slice_end=None):
     return input[slice_start:slice_end]
+
+def timing_function(function):
+    """
+    A decorator that prints the time a function takes to execute.
+    """
+    def wrapper(*args, **kwargs):
+        t1 = time.time()
+        result = function(*args, **kwargs)
+        t2 = time.time()
+        print(f'{function.__qualname__!r}: {(t2 - t1)/60:.1f} mins')
+        return result
+    return wrapper
