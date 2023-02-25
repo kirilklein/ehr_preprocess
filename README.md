@@ -1,2 +1,5 @@
 # ehr_preprocess
-Preprocessing pipelines for various Electronic Health Records datasets, including MIMIC III.
+This repo can be used to produce formatted versions of Electronic Health Records for MIMIC and other datasets.\\
+Data is separated into patients_info (static information) and concept.{eventtype}.\\
+patients_info: PID and corresponding static information
+concept.{eventtype}: PID, ADMISSION_ID, CONCEPT, TIMESTAMP, (TIMESTAMP_END, VALUE, VALUE_UNIT, ICUSTAY_ID)

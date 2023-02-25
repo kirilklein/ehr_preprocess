@@ -191,7 +191,9 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
                     'input_mv':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME','ITEMID', 'AMOUNT', 'AMOUNTUOM', 'ICUSTAY_ID'],
                     'procedure':['SUBJECT_ID', 'HADM_ID', 'STARTTIME', 'ENDTIME', 'ITEMID', 'VALUE', 'VALUEUOM', 'ICUSTAY_ID'],}
         self.usecols_dic['chart'] = self.usecols_dic['output'] 
-        self.rename_dic = {'CHARTTIME': 'TIMESTAMP', 'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 
+        self.rename_dic = {
+            'SUBJECT_ID': 'PID',
+            'CHARTTIME': 'TIMESTAMP', 'STARTTIME': 'TIMESTAMP', 'ENDTIME': 'TIMESTAMP_END', 
             'AMOUNT': 'VALUE', 'AMOUNTUOM': 'VALUE_UNIT', 'VALUEUOM': 'VALUE_UNIT'}
     def __call__(self):
         events_ls = []
