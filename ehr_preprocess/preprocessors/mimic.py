@@ -200,18 +200,24 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
         self.load_kwargs = {'infer_datetime_format': True, 'nrows':self.nrows, 'dtype':self.dtypes}
     @utils.timing_function
     def __call__(self):
+        chartevents_iter = self.get_chartevents()
+        for i, chartevent in enumerate(chartevents_iter):
+            chartevent = self.forward_table(chartevent)
+            if i==0: all_chartevents = chartevent
+            else: all_chartevents = pd.concat([all_chartevents, chartevent], axis=0)
+            if i==100: break
+        super().__call__(all_chartevents, suffix='_main')
+        del all_chartevents
         for i, get_func in enumerate([ self.get_procedure_events, self.get_outputevents, 
                                     self.get_input_cv_events, self.get_input_mv_events]):
-            events = self.forward_table(get_func)
+            events = self.forward_table(get_func())
             if i==0: all_events = events
             else: all_events = pd.concat([all_events, events], axis=0)
             super().__call__(all_events)
         del events, all_events
         # chartevents is large, so we treat it separately
-        super().__call__(self.forward_table(self.get_chartevents), suffix='_main')
-    @utils.timing_function
-    def forward_table(self, get_func):
-        events =  get_func()
+        
+    def forward_table(self, events):
         events = events.rename(columns=self.event_rename_dic)
         events = pd.merge(events, self.items_dic, on='ITEMID', how='left').drop('ITEMID', axis=1)
         events = events.rename(columns=self.rename_dic)
@@ -223,7 +229,7 @@ class MIMICPreprocessor_chartevent(MIMICEventPreprocessor):
     @utils.timing_function
     def get_chartevents(self):
         print('::: load CHARTEVENTS')
-        return pd.read_csv(join(self.raw_data_path, 'CHARTEVENTS.csv.gz'), 
+        return pd.read_csv(join(self.raw_data_path, 'CHARTEVENTS.csv.gz'), chunksize=1000000,
             usecols=self.usecols_dic['chart'], parse_dates=['CHARTTIME'], **self.load_kwargs)
     @utils.timing_function
     def get_outputevents(self):
