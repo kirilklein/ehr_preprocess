@@ -1,3 +1,4 @@
+test: false
 hydra:
   run:
     dir: data\formatted\mimic-iii-clinical-database-1.4 #output dir
@@ -11,17 +12,16 @@ preprocessor:
   _target_: __main__.mimic.MIMIC3Preprocessor
   _recursive_: false
 concepts:
-  # - lab
-  # - diag
-  # - pro
-  # - med
-  # - transfer
-  - chartevent
-  # - weight
-  # - microbio
+  - lab
+  - diag
+  - pro
+  - med
+  - transfer
+  # - chartevent
+  - weight
+  - microbio
 
 extract_patients_info: true
-test: false
 prepends: {lab: L, diag: D, pro: P, med: M, transfer: T, chartevent: 'C', weight: C, microbio: 'C'}
   
 
