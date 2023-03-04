@@ -34,5 +34,5 @@ class ComputeromePrepocessor(BasePreprocessor):
         if timestamp:
             df['TIMESTAMP'] = df['ADMISSION_ID'].map(lambda x: extract_key(x, 'TIMESTAMP'))
 
-        return df
+        return df[df['PID'].notna()]
 
