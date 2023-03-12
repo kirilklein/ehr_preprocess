@@ -1,5 +1,6 @@
 import pandas as pd
 from hydra.utils import instantiate
+import os
 
 
 class BasePreprocessor():
@@ -9,6 +10,9 @@ class BasePreprocessor():
         self.config = config
         self.info = {}
         self.admission_info = {}
+
+        if not os.path.exists(self.config.preprocessor.output_dir):
+            os.makedirs(self.config.preprocessor.output_dir)
 
     def __call__(self):
         self.process()
@@ -116,7 +120,9 @@ class BasePreprocessor():
 
     def save(self, df: pd.DataFrame, filename: str):
         if self.config.preprocessor.file_type == 'parquet':
-            df.to_parquet(f'{self.config.preprocessor.output_dir}/{filename}.parquet')
+            path = os.path.join(self.config.preprocessor.output_dir, f'{filename}.parquet')
+            df.to_parquet(path)
         elif self.config.preprocessor.file_type == 'csv':
-            df.to_csv(f'{self.config.preprocessor.output_dir}/{filename}.csv', index=False)
+            path = os.path.join(self.config.preprocessor.output_dir, f'{filename}.csv')
+            df.to_csv(path, index=False)
 

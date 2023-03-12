@@ -1,6 +1,6 @@
 preprocessor:
   main_folder: ../../../data/20210526
-  output_dir: .
+  output_dir: formatted_data
   file_type: csv
 
 concepts:
