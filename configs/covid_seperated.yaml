@@ -153,6 +153,11 @@ patients_info:
   date_of_death:
     filename: Patienters_evt_doedsdato.csv
     names: [PID, DATE_OF_DEATH]
+    converters:
+      DATE_OF_DEATH:
+        _partial_: true
+        _target_: utils.utils.slice_wrapper
+        slice_end: 10
 
   ages:
     filename: ADT_haendelser.csv
