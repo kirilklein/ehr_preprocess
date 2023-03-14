@@ -11,7 +11,7 @@ class ComputeromePrepocessor(BasePreprocessor):
                 tests = self.load_csv(self.config.patients_info.ages.covid_tests).drop_duplicates('ADMISSION_ID')
                 test_dict = {k: v for k,v in tests.values}  # Create dict of (ADMISSION_ID: timestamp)
                 nan_ages = ages[ages['TIMESTAMP'].isna()]   # Get rows with missing timestamp
-                new_timestamps = nan_ages['PID'].map(lambda key: test_dict.get(key))    # Map PID to covid test timestamp
+                new_timestamps = nan_ages['ADMISSION_ID'].map(lambda key: test_dict.get(key))    # Map PID to covid test timestamp
                 ages.loc[new_timestamps.index, 'TIMESTAMP'] = new_timestamps.values           # Overwrite NaN values with covid test timestamps
 
                 return ages
