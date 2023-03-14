@@ -35,7 +35,7 @@ concepts:
       usecols: [0, 2]
       function:
         _partial_: true
-        _target_: ehr_preprocess.processors.computerome.ComputeromePrepocessor.update_with_admission_info
+        _target_: ehr_preprocess.preprocessors.computerome.ComputeromePrepocessor.update_with_admission_info
         pid: true
         timestamp: true
 
@@ -171,7 +171,7 @@ patients_info:
         slice_end: 10
 
     function: 
-      _target_: ehr_preprocess.processors.computerome.ComputeromePrepocessor.calc_birthdates
+      _target_: ehr_preprocess.preprocessors.computerome.ComputeromePrepocessor.calc_birthdates
       _partial_: true
 
     # Used to fill nan values
@@ -180,6 +180,11 @@ patients_info:
       names: [ADMISSION_ID, TIMESTAMP]
       usecols: [2, 4]
       parse_dates: [TIMESTAMP]
+      converters:
+        TIMESTAMP:
+          _partial_: true
+          _target_: utils.utils.slice_wrapper
+          slice_end: 10
 
 # TODO: Map to something??? need TIMESTAMP
 measurements:

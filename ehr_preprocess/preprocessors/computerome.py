@@ -1,4 +1,4 @@
-from ehr_preprocess.processors.base import BasePreprocessor
+from ehr_preprocess.preprocessors.base import BasePreprocessor
 import pandas as pd
 
 
@@ -11,9 +11,9 @@ class ComputeromePrepocessor(BasePreprocessor):
                 tests = self.load_csv(self.config.patients_info.ages.covid_tests).drop_duplicates('ADMISSION_ID')
                 test_dict = {k: v for k,v in tests.values}  # Create dict of (ADMISSION_ID: timestamp)
                 nan_ages = ages[ages['TIMESTAMP'].isna()]   # Get rows with missing timestamp
-                new_timestamps = nan_ages['ADMISSION_ID'].map(lambda key: test_dict.get(key))    # Map PID to covid test timestamp
-                ages.loc[new_timestamps.index, 'TIMESTAMP'] = new_timestamps.values           # Overwrite NaN values with covid test timestamps
-
+                new_timestamps = nan_ages['ADMISSION_ID'].map(lambda key: test_dict.get(key))   # Map PID to covid test timestamp
+                ages.loc[new_timestamps.index, 'TIMESTAMP'] = new_timestamps.values             # Overwrite NaN values with covid test timestamps
+                ages['TIMESTAMP'] = pd.to_datetime(ages['TIMESTAMP'])
                 return ages
             ages = fill_with_covid_tests(ages)
 
@@ -35,4 +35,12 @@ class ComputeromePrepocessor(BasePreprocessor):
             df['TIMESTAMP'] = df['ADMISSION_ID'].map(lambda x: extract_key(x, 'TIMESTAMP'))
 
         return df[df['PID'].notna()]
+
+
+if __name__ == '__main__':
+    from hydra import initialize, compose
+    with initialize(config_path="../../configs"):
+        cfg = compose(config_name="computerome.yaml")
+    preprocessor = ComputeromePrepocessor(cfg)
+    preprocessor()
 
