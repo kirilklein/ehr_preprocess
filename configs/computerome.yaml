@@ -186,8 +186,12 @@ patients_info:
           _target_: utils.utils.slice_wrapper
           slice_end: 10
 
-# TODO: Map to something??? need TIMESTAMP
-measurements:
-  filename: Patienter_og_Koen.csv
-  names: [PID, HEIGHT, WEIGHT, BMI]
-  usecols: [0, 2, 3, 4]
+  measurements:
+    filename: Patienter_og_Koen.csv
+    names: [PID, BMI]
+    usecols: [0, 4]
+    converters:
+      BMI:
+        _partial_: true
+        _target_: utils.utils.bin_bmi
+        
