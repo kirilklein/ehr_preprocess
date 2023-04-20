@@ -7,15 +7,7 @@ class ComputeromePrepocessor(BasePreprocessor):
 
     def calc_birthdates(self, ages: pd.DataFrame):
         if self.config.patients_info.ages.get('covid_tests') is not None:
-            def fill_with_covid_tests(self, ages: pd.DataFrame):
-                tests = self.load_csv(self.config.patients_info.ages.covid_tests).drop_duplicates('ADMISSION_ID')
-                test_dict = {k: v for k,v in tests.values}  # Create dict of (ADMISSION_ID: timestamp)
-                nan_ages = ages[ages['TIMESTAMP'].isna()]   # Get rows with missing timestamp
-                new_timestamps = nan_ages['ADMISSION_ID'].map(lambda key: test_dict.get(key))   # Map PID to covid test timestamp
-                ages.loc[new_timestamps.index, 'TIMESTAMP'] = new_timestamps.values             # Overwrite NaN values with covid test timestamps
-                ages['TIMESTAMP'] = pd.to_datetime(ages['TIMESTAMP'])
-                return ages
-            ages = fill_with_covid_tests(ages)
+            ages = self.fill_with_covid_tests(ages)
 
         # Calculate approximate birthdates
         ages = ages.dropna().drop_duplicates('PID', keep='last')    # Drop rows with missing timestamp or duplicate patient ids
@@ -35,6 +27,15 @@ class ComputeromePrepocessor(BasePreprocessor):
             df['TIMESTAMP'] = df['ADMISSION_ID'].map(lambda x: extract_key(x, 'TIMESTAMP'))
 
         return df[df['PID'].notna()]
+
+    def fill_with_covid_tests(self, ages: pd.DataFrame):
+        tests = self.load_csv(self.config.patients_info.ages.covid_tests).drop_duplicates('ADMISSION_ID')
+        test_dict = {k: v for k,v in tests.values}  # Create dict of (ADMISSION_ID: timestamp)
+        nan_ages = ages[ages['TIMESTAMP'].isna()]   # Get rows with missing timestamp
+        new_timestamps = nan_ages['ADMISSION_ID'].map(lambda key: test_dict.get(key))   # Map PID to covid test timestamp
+        ages.loc[new_timestamps.index, 'TIMESTAMP'] = new_timestamps.values             # Overwrite NaN values with covid test timestamps
+        ages['TIMESTAMP'] = pd.to_datetime(ages['TIMESTAMP'])
+        return ages
 
 
 if __name__ == '__main__':
