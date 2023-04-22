@@ -5,6 +5,8 @@ def slice_wrapper(input, slice_start=None, slice_end=None):
     return input[slice_start:slice_end]
 
 def bin_bmi(bmi: float):
+    if bmi == '':
+        return None
     bmi = float(bmi)
     if bmi < 18.5:
         return 'underweight'
