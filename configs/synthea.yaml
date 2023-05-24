@@ -1,6 +1,6 @@
 preprocessor:
-  main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/csv
-  output_dir: formatted_data
+  main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
+  output_dir: formatted_data/synthea500
   file_type: csv
 
 concepts:
@@ -20,6 +20,6 @@ concepts:
 patients_info:
   all:
     filename: patients.csv
-    names: [PID, DATE_OF_BIRTH, DATE_OF_DEATH,RACE, ETHNICITY, GENDER]
-    usecols: [0, 1, 3, 12, 13, 14]
+    names: [PID, BIRTHDATE, DEATHDATE,RACE, ETHNICITY, GENDER]
+    usecols: [0, 1, 2, 12, 13, 14]
       
