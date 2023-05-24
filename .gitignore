@@ -127,3 +127,17 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/data/formatted/mimic-iii-clinical-database-1.4/patients_info.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/.hydra
+/data/formatted/mimic-iii-clinical-database-1.4/concept.chartevent.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.chartevent_main.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.diag.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.lab.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.med.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.microbio.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.pro.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.transfer.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/concept.weight.parquet
+/data/formatted/mimic-iii-clinical-database-1.4/config.yaml
+/data/formatted/mimic-iii-clinical-database-1.4/main.log
+/data/formatted/mimic-iii-clinical-database-1.4/metadata.json
