@@ -1,0 +1,25 @@
+preprocessor:
+  main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/csv
+  output_dir: formatted_data
+  file_type: csv
+
+concepts:
+  diagnose:
+    snomed:
+      filename: conditions.csv
+      names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT,]
+      usecols: [0, 2, 3, 4]
+
+  medication:
+    administered:
+      filename: medications.csv
+      names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT]
+      usecols: [0, 2, 4, 5]
+
+
+patients_info:
+  all:
+    filename: patients.csv
+    names: [PID, DATE_OF_BIRTH, DATE_OF_DEATH,RACE, ETHNICITY, GENDER]
+    usecols: [0, 1, 3, 12, 13, 14]
+      
