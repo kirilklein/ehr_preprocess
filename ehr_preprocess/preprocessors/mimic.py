@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from ehr_preprocess.preprocessors import base, utils
 
-class MIMIC3Preprocessor(base.BasePreprocessor):
+class MIMIC3Preprocessor(base.BaseMIMICPreprocessor):
     """Extracts events from MIMIC-III database and saves them in a single file."""
 
     def __init__(self, cfg, test=False):
