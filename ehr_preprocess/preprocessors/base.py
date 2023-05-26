@@ -9,14 +9,14 @@ base_dir = dirname(dirname(dirname(realpath(__file__))))
 
 class BasePreprocessor():
     def __init__(self, 
-            config, 
+            cfg, 
         ):
-        self.config = config
+        self.config = cfg
         self.info = {}
         self.admission_info = {}
 
-        if not os.path.exists(self.config.preprocessor.output_dir):
-            os.makedirs(self.config.preprocessor.output_dir)
+        if not os.path.exists(self.config.paths.output_dir):
+            os.makedirs(self.config.paths.output_dir)
 
     def __call__(self):
         self.process()
@@ -98,7 +98,7 @@ class BasePreprocessor():
         # Load csv
         df = pd.read_csv(
             # User defined
-            f"{self.config.preprocessor.main_folder}/{cfg['filename']}",
+            f"{self.config.paths.main_folder}/{cfg['filename']}",
             converters=converters,
             usecols=cfg.get('usecols'),
             names=cfg.get('names'),
@@ -123,11 +123,11 @@ class BasePreprocessor():
         return df
 
     def save(self, df: pd.DataFrame, filename: str):
-        if self.config.preprocessor.file_type == 'parquet':
-            path = os.path.join(self.config.preprocessor.output_dir, f'{filename}.parquet')
+        if self.config.paths.file_type == 'parquet':
+            path = os.path.join(self.config.paths.output_dir, f'{filename}.parquet')
             df.to_parquet(path)
-        elif self.config.preprocessor.file_type == 'csv':
-            path = os.path.join(self.config.preprocessor.output_dir, f'{filename}.csv')
+        elif self.config.paths.file_type == 'csv':
+            path = os.path.join(self.config.paths.output_dir, f'{filename}.csv')
             df.to_csv(path, index=False)
 
 
