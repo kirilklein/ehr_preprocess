@@ -15,7 +15,11 @@ concepts:
       filename: medications.csv
       names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT]
       usecols: [0, 2, 4, 5]
-
+admissions:
+  admission:
+    filename: medications.csv
+    names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT]
+    usecols: [0, 2, 4, 5]
 
 patients_info:
   all:
