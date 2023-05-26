@@ -6,5 +6,6 @@ __version__ = '0.0.1'
 
 from . import base
 from . import synthea
+from . import azure
 from . import mimic
 from . import utils
