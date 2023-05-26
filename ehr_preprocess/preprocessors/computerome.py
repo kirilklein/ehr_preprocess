@@ -37,10 +37,3 @@ class ComputeromePrepocessor(BasePreprocessor):
         ages['TIMESTAMP'] = pd.to_datetime(ages['TIMESTAMP'])
         return ages
 
-
-if __name__ == '__main__':
-    from hydra import initialize, compose
-    with initialize(config_path="../../configs"):
-        cfg = compose(config_name="computerome.yaml")
-    preprocessor = ComputeromePrepocessor(cfg)
-    preprocessor()
