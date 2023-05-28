@@ -27,7 +27,6 @@ class AzurePreprocessor():
             concepts = concepts.dropna()
             concepts = concepts.drop_duplicates()
             if type=='medication':
-                ord['CONCEPT'] = ord['CONCEPT'].map(lambda x: 'M'+x)
                 concepts['CONCEPT'] = concepts['CONCEPT'].map(lambda x: 'M'+x)
             concepts = self.change_dtype(concepts, top_level_config)
             concepts = concepts.set_index('PID')
