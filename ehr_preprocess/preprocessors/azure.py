@@ -32,7 +32,6 @@ class AzurePrepocessor(BasePreprocessor):
     # load data in dask
     def __init__(self, cfg, test=False) -> None:
         super().__init__(cfg, test)
-        self.batch_size = self.cfg.preprocessor.batch_size
 
     def concepts(self):
         # Loop over all top-level concepts (diagnosis, medication, procedures, etc.)
@@ -47,7 +46,7 @@ class AzurePrepocessor(BasePreprocessor):
             self.save(concepts, f'concept.{type}')
 
     def patients_info(self):
-        df = self.load_csv(self.config.patients_info)
+        df = self.load_pandas(self.config.patients_info)
         # Convert info dict to dataframe
         self.save(df, 'patients_info')
 
