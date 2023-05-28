@@ -1,7 +1,11 @@
-preprocessor:
+paths:
   main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
-  output_dir: formatted_data/synthea500
+  output_dir: formatted_data/synthea500_test
   file_type: csv
+
+preprocessor:
+  _target_: preprocessors.synthea.SyntheaPrepocessor
+  _recursive_: false
 
 concepts:
   diagnose:

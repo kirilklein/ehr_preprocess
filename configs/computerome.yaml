@@ -1,4 +1,7 @@
 preprocessor:
+  _target_: preprocessors.computerome.ComputeromePrepocessor
+  _recursive_: false
+paths:
   main_folder: ../../../data/20210526
   output_dir: .
   file_type: csv
