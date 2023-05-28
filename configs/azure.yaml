@@ -1,29 +1,30 @@
+test: true
 paths:
-  main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
-  output_dir: formatted_data/synthea500_test
-  file_type: csv
+  output_dir: formatted_data/medication_diagnosis
+  file_type: parquet
 
 preprocessor:
-  _target_: __main__.mimic.AzurePreprocessor
-  _recursive_: false
+  _target_: preprocessors.azure.AzurePreprocessor
 
 concepts:
   diagnosis:
     filename: CPMI_Diagnoser.parquet
-    names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT,]
-    usecols: [0, 2, 3, 4]
+    names: ['PID', 'CONCEPT', 'TIMESTAMP']
+    usecols: [0,1,3]
     dtypes: {CONCEPT: category}
+    npartitions: 100
 
   medication:
     filename: CPMI_Medicin.parquet
-    names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT]
-    usecols: [0, 2, 4, 5]
+    names: [PID, CONCEPT, TIMESTAMP]
+    usecols: [0, 4, 6]
     dtypes: {CONCEPT: category}  
-
+    npartitions: 100
+    
 admissions:
     filename: CPMI_ADTHaendelser.parquet
-    names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT]
-    usecols: [0, 2, 4, 5]
+    names: ['PID', 'TIMESTAMP', 'TIMESTAMP_END']
+    usecols: [0, 1, 2]
 
 patients_info:
     filename: CPMI_PatientInfo.parquet
