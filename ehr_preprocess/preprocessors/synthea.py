@@ -12,6 +12,7 @@ class SyntheaPrepocessor(BasePreprocessor):
             combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
             combined = combined.sort_values('TIMESTAMP')
             combined = self.map_snomed_to_icd10(combined)
+            combined = self.clean_concepts(combined)
             self.save(combined, f'concept.{type}')
 
     @staticmethod        
