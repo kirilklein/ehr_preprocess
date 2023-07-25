@@ -18,7 +18,7 @@ class SyntheaPrepocessor(BasePreprocessor):
     @staticmethod        
     def map_snomed_to_icd10(combined):
         """Map snomed codes to icd10 codes using the provided map"""
-        map_df = pd.read_csv("helpers\\tls_Icd10cmHumanReadableMap_US1000124_20230301.tsv", sep="\t", )
+        map_df = pd.read_csv("..\\data\\helper\\tls_Icd10cmHumanReadableMap_US1000124_20230301.tsv", sep="\t", )
         map_df = map_df.drop_duplicates(subset="referencedComponentId", keep="first")
         snomed_to_icd10 = map_df.set_index("referencedComponentId").mapTarget.to_dict() 
         combined.CONCEPT = combined.CONCEPT.map(snomed_to_icd10)
