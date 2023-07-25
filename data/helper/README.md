@@ -1,4 +1,6 @@
 Tables that map codes between different systems
+- icd9->icd10 general equivalence mapping (preferred):
+    - source: https://old-prod.asco.org/practice-policy/billing-coding-reporting/icd-10/general-equivalence-mappings-gems#:~:text=General%20Equivalence%20Mappings%20(GEMS)%20were,ICD%2D10%20and%20vice%20versa.
 - icd10icd9_mapping.xlsx 
     - source: https://www.health.govt.nz/nz-health-statistics/data-references/mapping-tools/mapping-between-icd-10-and-icd-9
 - NDC to ATC 
@@ -6,3 +8,5 @@ Tables that map codes between different systems
     - alternatively: https://github.com/fabkury/ndc_map.git R script that links to the national library https://lhncbc.nlm.nih.gov/RxNav/
 - NDC.csv
     - https://www.nber.org/research/data/national-drug-code
+- SNOMED->ICD10: tls_Icd10cmHuman....tsv
+- source: https://www.snomed.org/maps
