@@ -1,0 +1,62 @@
+preprocessor:
+  _target_: preprocessors.mimic4.MIMIC4Preprocessor
+  _recursive_: false
+paths:
+  main_folder: ../data/raw/mimic-iv-2.2/mimic-iv-2.2
+  output_dir: ../data/formatted/mimic4_med_diag
+  file_type: csv
+
+extract_patients_info: true
+
+concepts:
+  diagnose:
+    icd:
+      filename: hosp/Aktive_problemliste_diagnoser.csv
+      names: [PID, CONCEPT, TIMESTAMP]
+
+    ita_diagnosis:
+      filename: ITA_ophold_og_respirator.csv
+      names: [PID, CONCEPT, TIMESTAMP]
+      usecols: [0, 3, 4]
+
+    admissions_and_diagnoses:
+      filename: Indlaeggelser_og_diagnoser.csv
+      names: [ADMISSION_ID, CONCEPT]
+      usecols: [0, 2]
+      function:
+        _partial_: true
+        _target_: ehr_preprocess.preprocessors.computerome.ComputeromePrepocessor.update_with_admission_info
+        pid: true
+        timestamp: true
+
+
+  medication:
+    administered:
+      filename: AdministreretMedicin.csv
+      names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT, VALUE]
+      usecols: [0, 1, 2, 3, 4]
+      converters:
+        CONCEPT:
+          _partial_: true
+          _target_: ehr_preprocess.preprocessors.utils.prepend
+          prepend_token: M
+
+    prescribed:
+      filename: OrdineretMedicin.csv
+      names: [PID, TIMESTAMP, TIMESTAMP_END, NAME, VALUE, CONCEPT]
+      usecols: [0, 1, 2, 3, 4, 5]
+      converters:
+        CONCEPT:
+            _partial_: true
+            _target_: ehr_preprocess.preprocessors.utils.prepend
+            prepend_token: M
+
+
+
+patients_info:
+  basic_info:
+    filename: hosp/patients.csv.gz
+    load_columns: ['subject_id', 'gender', 'anchor_age', 'anchor_year', 'dod']
+  admission_info:
+    filename: hosp/admissions.csv.gz
+    load_columns: ['subject_id','language', 'insurance', 'marital_status', 'race']
