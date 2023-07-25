@@ -98,7 +98,7 @@ class BasePreprocessor():
         # Load csv
         df = pd.read_csv(
             # User defined
-            f"{self.config.paths.main_folder}/{cfg['filename']}",
+            join(self.config.paths.main_folder, cfg['filename']),
             converters=converters,
             usecols=cfg.get('usecols'),
             names=cfg.get('names'),
