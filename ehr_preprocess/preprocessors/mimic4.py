@@ -55,3 +55,7 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
             admission_info = admission_info.merge(col_info, on='PID', how='left')
         return admission_info
     
+    def map_icd9_to_icd10(self, diagnoses):
+        mapping = pd.read_csv("..\\data\\helper\\diagnosis_gems_2018\\2018_I9gem.txt", delimiter='\s+', names=['icd9', 'icd10'], usecols=[0,1])
+        mapping = mapping.set_index('icd9')['icd10'].to_dict()
+        
