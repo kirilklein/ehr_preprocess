@@ -4,7 +4,7 @@ import hydra
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-config_name = "synthea"
+config_name = "mimic4"
 base_dir = dirname(dirname(realpath(__file__)))
 config_path = join(base_dir, 'configs')
 

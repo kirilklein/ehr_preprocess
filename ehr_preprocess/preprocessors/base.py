@@ -12,11 +12,18 @@ class BasePreprocessor():
             cfg, 
         ):
         self.config = cfg
+        self.set_test(cfg)
         self.info = {}
         self.admission_info = {}
 
         if not os.path.exists(self.config.paths.output_dir):
             os.makedirs(self.config.paths.output_dir)
+            
+    def set_test(self, cfg):
+        if 'test' in cfg:
+            self.test = cfg.test
+        else:
+            self.test = False
 
     def __call__(self):
         self.process()
@@ -86,40 +93,58 @@ class BasePreprocessor():
         return df
 
     def load_csv(self, cfg: dict):
+        converters = self.get_converters(cfg)
+        parse_dates = self.get_parse_dates(cfg)
+        df = self.read_csv_file(cfg, converters, parse_dates)
+        self.add_info_to_dicts(df)
+        df = self.apply_function(cfg, df)
+        return df
+    
+    def get_dtypes(self, cfg: dict):
+        if cfg.get('dtype') is not None:
+            dtypes = {column: dtype for column, dtype in cfg.get('dtype').items()}
+        else: 
+            dtypes = None
+        return dtypes
+
+    def get_converters(self, cfg: dict):
         if cfg.get('converters') is not None:
             converters = {column: instantiate(func) for column, func in cfg.get('converters').items()}
         else: 
             converters = None
-            
+        return converters
+
+    def get_parse_dates(self, cfg: dict):
         if cfg.get('parse_dates') is not None:
             parse_dates = [column for column in cfg.get('parse_dates')]
         else: 
             parse_dates = None
-        # Load csv
+        return parse_dates
+    
+    def read_csv_file(self, cfg: dict, converters: dict, parse_dates: list):
         df = pd.read_csv(
-            # User defined
-            f"{self.config.paths.main_folder}/{cfg['filename']}",
+            join(self.config.paths.main_folder, cfg['filename']),
             converters=converters,
             usecols=cfg.get('usecols'),
             names=cfg.get('names'),
+            dtype=self.get_dtypes(cfg),
             parse_dates=parse_dates,
-            # Defaults
             encoding='ISO-8859-1',
             skiprows=[0],
             header=0,
+            nrows=10000 if self.test else None
         )
+        return df
 
-        # Add patients to info dict
+    def add_info_to_dicts(self, df):
         if 'PID' in df.columns:
             self.add_patients_to_info(df)
-            # Add admissions to admission dict
             if 'ADMISSION_ID' in df.columns and 'TIMESTAMP' in df.columns:
                 self.add_admission_info(df)
 
-        # Apply function
+    def apply_function(self, cfg: dict, df):
         if cfg.get('function') is not None:
             df = instantiate(cfg['function'])(self, df)
-            
         return df
 
     def save(self, df: pd.DataFrame, filename: str):
