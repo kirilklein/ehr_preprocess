@@ -69,3 +69,16 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
         mapping['icd9'] = 'D' + mapping['icd9']
         mapping = mapping.set_index('icd9')['icd10'].to_dict()
         return mapping
+    
+    def handle_medication_codes(self, medication):
+        medication = self.replace_zero_ndc(medication)
+        medication = self.map_ndc_to_rxnorm(medication)
+        return medication
+    def replace_zero_ndc(self, medication):
+        zero_mask = medication['CONCEPT']==0
+        medication.loc[zero_mask, 'CONCEPT'] = medication.loc[zero_mask, 'drug']
+        medication = medication.drop(columns=['drug'])
+        return medication
+    
+    def map_ndc_to_rxnorm(self, medication):
+        raise NotImplementedError('Mapping NDC to RxNorm is not implemented yet.')

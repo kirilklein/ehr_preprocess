@@ -37,8 +37,8 @@ concepts:
   medication:
     mecication:
       filename: hosp/prescriptions.csv.gz
-      names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT]
-      usecols: [0, 1, 6, 12]
+      names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT, drug]
+      usecols: [0, 1, 6, 12, 9]
       parse_dates: [TIMESTAMP]
       
 
