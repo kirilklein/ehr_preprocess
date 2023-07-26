@@ -20,20 +20,25 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
             combined = self.combine_dataframes(individual_dfs, top_level_config)
             
             combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
+            combined = combined.dropna(subset=['PID', 'CONCEPT','TIMESTAMP'], how='any')
             self.save(combined, f'concept.{type}')
-            
-    def combine_dataframes(self, individual_dfs, top_level_config)
+
+    def combine_dataframes(self, individual_dfs, top_level_config):
         first_config = [cfg for cfg in top_level_config.values()][0]
-        combine = first_config.combine.get('method', 'concat')
-        if combine=='concat':
-            combined = pd.concat(individual_dfs)
-        elif combine=='merge':
-            merge_on = first_config.combine.get('on', None)
-            combined = individual_dfs[0]
-            for df in individual_dfs[1:]:
-                combined = combined.merge(df, on=merge_on, how='left')
+        if 'combine' not in first_config:
+            return pd.concat(individual_dfs)
         else:
-            raise ValueError(f'Unknown combine method: {combine}')
+            combine = first_config.combine.get('method', 'concat')
+            if combine=='concat':
+                combined = pd.concat(individual_dfs)
+            elif combine=='merge':
+                merge_on = first_config.combine.get('on', None)
+                combined = individual_dfs[0]
+                for df in individual_dfs[1:]:
+                    combined = combined.merge(df, on=merge_on, how='left')
+            else:
+                raise ValueError(f'Unknown combine method: {combine}')
+            return combined
 
     def calculate_birthdate(self, patients):
         """Calculates the birthdate of each patient based on the anchor year and age."""

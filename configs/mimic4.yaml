@@ -11,26 +11,33 @@ test: True
 concepts:
   diagnose:
     icd:
-      filename: hosp/Aktive_problemliste_diagnoser.csv
+      filename: hosp/diagnoses_icd.csv.gz
       names: [PID, ADMISSION_ID, CONCEPT]
-      usecols: [0, 1, 2]
+      usecols: [0, 1, 3]
+      dtype: {ADMISSION_ID: int}
       converters:
         CONCEPT:
           _partial_: true
           _target_: preprocessors.utils.prepend
-          prepend_token: M
+          prepend_token: D
       combine: 
           method: merge
           on: ADMISSION_ID
 
-    admissions_and_diagnoses:
+    admissions:
       filename: hosp/admissions.csv.gz
       names: [ADMISSION_ID, TIMESTAMP]
       usecols: [1, 3]
       parse_dates: [TIMESTAMP]
-      
-    
+      dtype: {ADMISSION_ID: int}
 
+  medication:
+    mecication:
+      filename: hosp/prescriptions.csv.gz
+      names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT]
+      usecols: [0, 1, 6, 12]
+      parse_dates: [TIMESTAMP]
+      
 
 patients_info:
   basic_info:
