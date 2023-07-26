@@ -100,13 +100,20 @@ class BasePreprocessor():
         df = self.apply_function(cfg, df)
         return df
     
+    def get_dtypes(self, cfg: dict):
+        if cfg.get('dtype') is not None:
+            dtypes = {column: dtype for column, dtype in cfg.get('dtype').items()}
+        else: 
+            dtypes = None
+        return dtypes
+
     def get_converters(self, cfg: dict):
         if cfg.get('converters') is not None:
             converters = {column: instantiate(func) for column, func in cfg.get('converters').items()}
         else: 
             converters = None
         return converters
-    
+
     def get_parse_dates(self, cfg: dict):
         if cfg.get('parse_dates') is not None:
             parse_dates = [column for column in cfg.get('parse_dates')]
@@ -120,6 +127,7 @@ class BasePreprocessor():
             converters=converters,
             usecols=cfg.get('usecols'),
             names=cfg.get('names'),
+            dtype=self.get_dtypes(cfg),
             parse_dates=parse_dates,
             encoding='ISO-8859-1',
             skiprows=[0],
