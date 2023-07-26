@@ -14,6 +14,7 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
 
     def __call__(self):
         self.patients_info()
+        self.concepts()
 
     def patients_info(self):
         patients = self.load_basic_info()
@@ -23,6 +24,13 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
         patients.columns = patients.columns.str.upper()
         self.save(patients, 'patients_info.csv')
     
+    def concepts(self):
+        for cfg in self.config.concepts:
+            df = self.load_csv(cfg)
+            df = df.rename(columns=self.rename_dic)
+            df.columns = df.columns.str.upper()
+            self.save(df, f'concepts.{cfg.name}.csv')
+
     def load_csv(self, cfg):
         return pd.read_csv(join(self.data_dir, cfg.filename),
                            usecols=cfg.load_columns, 
