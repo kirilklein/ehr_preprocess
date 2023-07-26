@@ -12,11 +12,18 @@ class BasePreprocessor():
             cfg, 
         ):
         self.config = cfg
+        self.set_test(cfg)
         self.info = {}
         self.admission_info = {}
 
         if not os.path.exists(self.config.paths.output_dir):
             os.makedirs(self.config.paths.output_dir)
+            
+    def set_test(self, cfg):
+        if 'test' in cfg:
+            self.test = cfg.test
+        else:
+            self.test = False
 
     def __call__(self):
         self.process()
@@ -117,6 +124,7 @@ class BasePreprocessor():
             encoding='ISO-8859-1',
             skiprows=[0],
             header=0,
+            nrows=10000 if self.test else None
         )
         return df
 
@@ -125,7 +133,7 @@ class BasePreprocessor():
             self.add_patients_to_info(df)
             if 'ADMISSION_ID' in df.columns and 'TIMESTAMP' in df.columns:
                 self.add_admission_info(df)
-                
+
     def apply_function(self, cfg: dict, df):
         if cfg.get('function') is not None:
             df = instantiate(cfg['function'])(self, df)
