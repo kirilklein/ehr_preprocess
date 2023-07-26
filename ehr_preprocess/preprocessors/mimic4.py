@@ -56,6 +56,16 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
         return admission_info
     
     def map_icd9_to_icd10(self, diagnoses):
-        mapping = pd.read_csv("..\\data\\helper\\diagnosis_gems_2018\\2018_I9gem.txt", delimiter='\s+', names=['icd9', 'icd10'], usecols=[0,1])
-        mapping = mapping.set_index('icd9')['icd10'].to_dict()
+        mapping = self.get_icd9_to_icd10_mapping()
+        icd9_mask = diagnoses['icd_version']==9
+        diagnoses = diagnoses.drop(columns=['icd_version'])
         
+        diagnoses.loc[icd9_mask, 'CONCEPT'] = diagnoses.loc[icd9_mask, 'CONCEPT'].map(mapping)
+        return diagnoses
+
+    def get_icd9_to_icd10_mapping(self):
+        mapping = pd.read_csv("..\\data\\helper\\diagnosis_gems_2018\\2018_I9gem.txt", delimiter='\s+', names=['icd9', 'icd10'], usecols=[0,1])
+        mapping['icd10'] = 'D' + mapping['icd10']
+        mapping['icd9'] = 'D' + mapping['icd9']
+        mapping = mapping.set_index('icd9')['icd10'].to_dict()
+        return mapping

@@ -12,14 +12,17 @@ concepts:
   diagnose:
     icd:
       filename: hosp/diagnoses_icd.csv.gz
-      names: [PID, ADMISSION_ID, CONCEPT]
-      usecols: [0, 1, 3]
+      names: [PID, ADMISSION_ID, CONCEPT, icd_version]
+      usecols: [0, 1, 3, 4]
       dtype: {ADMISSION_ID: int}
       converters:
         CONCEPT:
           _partial_: true
           _target_: preprocessors.utils.prepend
           prepend_token: D
+      function:
+        _partial_: true
+        _target_: preprocessors.mimic4.MIMIC4Preprocessor.map_icd9_to_icd10
       combine: 
           method: merge
           on: ADMISSION_ID
