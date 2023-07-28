@@ -6,27 +6,39 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 import time
-import pandas as pd
 
 class NDC_ATC_Mapper:
     def __init__(self, raw_ndc_codes, 
-                 driver_exe_path = "C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\ehr_preprocess\\data\\helper\\ndc_to_atc\\chromedriver-win64\\chromedriver.exe"):
+                 driver_exe_path = "C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\ehr_preprocess\\data\\helper\\ndc_to_atc\\chromedriver-win64\\chromedriver.exe",
+                 test=True):
         self.raw_ndc_codes = raw_ndc_codes
         # self.driver = self.get_driver(driver_exe_path)
         self.all_ndc_codes = self.get_all_ndc_codes() 
         self.possible_formattings = self.get_possible_formattings()
+        self.format_map = {}
+        
+        self.test = test
+
     def __call__(self):
-        for raw_ndc_code in self.raw_ndc_codes:
-            ndc_code = self.format_ndc_code(raw_ndc_code)
-            print(raw_ndc_code, ndc_code)
-            yield ndc_code
-            # if ndc_code:
+        self.format_codes()
+        self.save_formatted_codes()
+        if not os.path.exists('..\\data\\helper\\ndc_to_atc\\NDC_to_ATC_mapping.csv'):
+            print('Run https://github.com/fabkury/ndc_map on the formatted NDC codes to create the mapping file.')
+        
             #     atc_code = self.map_ndc_code(ndc_code)
             #     if atc_code:
             #         yield ndc_code, atc_code
             #     else:
             #         yield ndc_code, None            
 
+    def save_formatted_codes(self):
+        data = [(k, v) for k, values in self.format_map.items() for v in values]
+        formatted_codes = pd.DataFrame(data, columns=['Raw_NDC', 'NDC'])
+        os.makedirs('..\\data\\interim\\mimic4', exist_ok=True)
+        formatted_codes.to_csv('..\\data\\interim\\mimic4\\formatted_ndc_codes.csv', index=False)
+
+    def get_inverse_format_map(self):
+        return {v: k for k, ls in self.format_map.items() for v in ls if v is not None}
     def map_code(self, ndc_code):
         if len(ndc_code) < 11:
             return None
@@ -36,7 +48,12 @@ class NDC_ATC_Mapper:
                 return None
             atc_code = self.retrieve_code(ndc_code)
             return atc_code
-        
+    def format_codes(self):
+        for raw_code in self.raw_ndc_codes:
+            if len(raw_code) < 11:
+                self.format_map[raw_code] = [None]
+            else:
+                self.find_suitable_format(raw_code)
     def retrieve_code(self, ndc_code):
         self.enter_code(ndc_code)
         time.sleep(1)
@@ -60,16 +77,6 @@ class NDC_ATC_Mapper:
         except TimeoutException:
             return None
 
-    def format_ndc_code(self, raw_ndc_code):
-        if len(raw_ndc_code)==11:
-            formatted_ndc_code = self.insert_separators(raw_ndc_code)
-            if formatted_ndc_code not in self.all_ndc_codes:
-                formatted_ndc_code = self.move_separator(formatted_ndc_code)
-                if formatted_ndc_code not in self.all_ndc_codes:
-                    return None
-            return formatted_ndc_code
-        else:
-            return None
     def get_possible_formattings(self,):
         return [self.format1a, self.format1b, self.format2a, self.format2b, self.format3a, self.format3aa, self.format3b, self.format3ba, self.format4a, self.format4b]
     @staticmethod
@@ -124,17 +131,20 @@ class NDC_ATC_Mapper:
         return ndc_code
     
     def find_suitable_format(self, raw_code):
-        print('raw code', raw_code)
-        print('Try exact match')
+        # print('raw code', raw_code)
+        # print('Try exact match')
         formatted_code = self.check_exact_match(raw_code)
         if formatted_code:
-            return formatted_code
-        print('Try partial match')
-        formatted_code = self.check_partial_match(raw_code)
-        if formatted_code:
-            return formatted_code
+            self.format_map[raw_code] = [formatted_code]
+        else:
+            # print('Try partial match')
+            formatted_code = self.check_partial_match(raw_code)
+            if formatted_code:
+                self.format_map[raw_code] = [formatted_code]
+            else:
+                self.format_map[raw_code] = [self.apply_format(raw_code, formatting) for formatting in self.possible_formattings]
+                self.format_map[raw_code] = [code for code in self.format_map[raw_code] if code!=raw_code]
         # raise ValueError("No suitable formatting found")
-        return None
     
     def check_exact_match(self, raw_code):
         for formatting in self.possible_formattings:
@@ -159,14 +169,18 @@ class NDC_ATC_Mapper:
     
     def check_format_exact(self, ndc_code):
         return ndc_code in self.all_ndc_codes.values
+    
     def check_format_partial(self, ndc_code):
         first_nine = self.all_ndc_codes.str.startswith(ndc_code[:9]).any()
         firs_eight = self.all_ndc_codes.str.startswith(ndc_code[:8]).any()
         first_seven = self.all_ndc_codes.str.startswith(ndc_code[:7]).any()
         return first_nine or firs_eight or first_seven
+    
     @staticmethod
     def get_all_ndc_codes():
-        return pd.read_csv("..\\data\\helper\\ndc_to_atc\\NDC_codes.csv").ndcpackagecode
+        ndc1 = pd.read_csv("..\\data\\helper\\ndc_to_atc\\ndc2atc_level4.csv").NDC
+        ndc2 = pd.read_csv("..\\data\\helper\\ndc_to_atc\\NDC_codes.csv").ndcpackagecode
+        return pd.concat([ndc1, ndc2]).drop_duplicates()
     
     def get_driver(self, driver_exe_path):
         service = ChromeService(executable_path=driver_exe_path)
