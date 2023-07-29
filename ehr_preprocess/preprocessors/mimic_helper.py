@@ -23,14 +23,20 @@ class NDC_ATC_Mapper:
         if len(files)>1:
             raise ValueError(f'Multiple files found:{files}')
         elif len(files)==0:
-            self.medications.rename(columns={'CONCEPT': 'NDC'})['NDC'].to_csv(join(store_dir, "ndc_codes.csv"), index=False)
+            self.store_ndc_codes(store_dir)
+            print(f"Saved NDC codes to {store_dir}\\ndc_codes.csv. Run")
             raise FileNotFoundError(f"Run https://github.com/fabkury/ndc_map on the NDC codes stored in {store_dir} to create the mapping file.\
                              and save the output in {store_dir}. Then Re-run this script.")
         else:
-            return pd.read_csv(files[0], usecols=['ndc', 'atc5'], dtype={'ndc': 'category', 'atc5': 'category'})
+            mapping_ = pd.read_csv(files[0], usecols=['ndc', 'atc5'], dtype={'ndc': 'category', 'atc5': 'category'})
+            mapping_ = mapping_.dropna(subset=['atc5'])
+            return mapping_
+        
+    def store_ndc_codes(self, store_dir):
+        self.medications.rename(columns={'CONCEPT': 'NDC'})['NDC'].drop_duplicates().to_csv(join(store_dir, "ndc_codes.csv"), index=False)
 
     def get_random_atc5(self, ndc_code):
-        atc5_codes = self.mapping_[self.mapping_['NDC'] == ndc_code]['atc5']
+        atc5_codes = self.mapping_[self.mapping_['ndc'] == ndc_code]['atc5']
         return np.random.choice(atc5_codes) if len(atc5_codes) > 0 else None
     
     def format_ndc_codes(self):
