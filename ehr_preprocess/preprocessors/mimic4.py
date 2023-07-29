@@ -1,6 +1,7 @@
-from preprocessors import base
 import pandas as pd
-from os.path import join
+from mimic_helper import NDC_ATC_Mapper
+from preprocessors import base
+
 
 class MIMIC4Preprocessor(base.BasePreprocessor):
     """Extracts events from MIMIC-III database and saves them in a single file."""
@@ -70,15 +71,31 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
         mapping = mapping.set_index('icd9')['icd10'].to_dict()
         return mapping
     
-    def handle_medication_codes(self, medication):
-        medication = self.replace_zero_ndc(medication)
-        medication = self.map_ndc_to_rxnorm(medication)
-        return medication
-    def replace_zero_ndc(self, medication):
-        zero_mask = medication['CONCEPT']==0
-        medication.loc[zero_mask, 'CONCEPT'] = medication.loc[zero_mask, 'drug']
-        medication = medication.drop(columns=['drug'])
+    def handle_medication(self, medication, prepend='M'):
+        medication = PrescriptionMedicationHandler()(medication, prepend)
         return medication
     
-    def map_ndc_to_rxnorm(self, medication):
-        raise NotImplementedError('Mapping NDC to RxNorm is not implemented yet.')
+    
+class PrescriptionMedicationHandler:
+    """Maps NDC codes to ATC5 codes. And fills nans"""
+    def __call__(self, medication, prepend) -> pd.DataFrame:
+        medication = self.map_ndc_to_atc(medication)
+        medication = self.fill_nans_medication(medication)
+        medication = self._prepend(medication, prepend)
+
+    @staticmethod
+    def map_ndc_to_atc(medication):
+        mapper_ = NDC_ATC_Mapper(medication)
+        return mapper_.map()
+    @staticmethod
+    def fill_nans_medication(medication):
+        medication.CONCEPT = medication.CONCEPT.fillna(medication.drug)
+        medication = medication.drop(columns=['drug'])
+        return medication
+    @staticmethod
+    def _prepend(df, prepend):
+        df['CONCEPT'] = prepend + df['CONCEPT']
+        return df
+
+    
+    
