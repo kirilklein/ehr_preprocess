@@ -1,6 +1,7 @@
-from preprocessors import base
 import pandas as pd
-from os.path import join
+from preprocessors.mimic_helper import NDC_ATC_Mapper
+from preprocessors import base
+
 
 class MIMIC4Preprocessor(base.BasePreprocessor):
     """Extracts events from MIMIC-III database and saves them in a single file."""
@@ -54,4 +55,48 @@ class MIMIC4Preprocessor(base.BasePreprocessor):
             col_info = admissions.groupby('PID')[col].agg(lambda x: pd.Series.mode(x)[0] if not pd.Series.mode(x).empty else None).reset_index()
             admission_info = admission_info.merge(col_info, on='PID', how='left')
         return admission_info
+    
+    def map_icd9_to_icd10(self, diagnoses):
+        mapping = self.get_icd9_to_icd10_mapping()
+        icd9_mask = diagnoses['icd_version']==9
+        diagnoses = diagnoses.drop(columns=['icd_version'])
+        
+        diagnoses.loc[icd9_mask, 'CONCEPT'] = diagnoses.loc[icd9_mask, 'CONCEPT'].map(mapping)
+        return diagnoses
+
+    def get_icd9_to_icd10_mapping(self):
+        mapping = pd.read_csv("..\\data\\helper\\diagnosis_gems_2018\\2018_I9gem.txt", delimiter='\s+', names=['icd9', 'icd10'], usecols=[0,1])
+        mapping['icd10'] = 'D' + mapping['icd10']
+        mapping['icd9'] = 'D' + mapping['icd9']
+        mapping = mapping.set_index('icd9')['icd10'].to_dict()
+        return mapping
+    
+    def handle_medication(self, medication, prepend='M'):
+        medication = PrescriptionMedicationHandler()(medication, prepend)
+        return medication
+    
+    
+class PrescriptionMedicationHandler:
+    """Maps NDC codes to ATC5 codes. And fills nans"""
+    def __call__(self, medication, prepend) -> pd.DataFrame:
+        medication = self.map_ndc_to_atc(medication)
+        medication = self.fill_nans_medication(medication)
+        medication = self._prepend(medication, prepend)
+        return medication
+    
+    @staticmethod
+    def map_ndc_to_atc(medication):
+        mapper_ = NDC_ATC_Mapper(medication)
+        return mapper_.map()
+    @staticmethod
+    def fill_nans_medication(medication):
+        medication.CONCEPT = medication.CONCEPT.fillna(medication.drug)
+        medication = medication.drop(columns=['drug'])
+        return medication
+    @staticmethod
+    def _prepend(df, prepend):
+        df['CONCEPT'] = prepend + df['CONCEPT']
+        return df
+
+    
     
