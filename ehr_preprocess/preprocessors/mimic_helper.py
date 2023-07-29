@@ -1,26 +1,22 @@
 
-import time
 import os
 import numpy as np
 from os.path import join
-import inspect
 import pandas as pd
 import glob
 
 
 class NDC_ATC_Mapper:
-    def __init__(self, medications, 
-                 test=True):
+    """Maps NDC codes to ATC5 codes. And fills nans"""
+    def __init__(self, medications,):
         self.medications = medications
         self.raw_ndc_codes = medications['CONCEPT'].unique()
-        
-        self.test = test
+        self.mapping_ = self.get_mapping()
 
     def map(self):
-        # self.format_ndc_codes()
-        mapping_ = self.get_mapping()
-            
-        
+        self.medications['CONCEPT'] = self.medications['CONCEPT'].apply(self.get_random_atc5)
+        return self.medications
+    
     def get_mapping(self):
         store_dir = "..\\data\\interim\\mimic4"
         files = glob.glob(join(store_dir, "ndc_map*.csv"))
@@ -33,27 +29,19 @@ class NDC_ATC_Mapper:
         else:
             return pd.read_csv(files[0], usecols=['ndc', 'atc5'], dtype={'ndc': 'category', 'atc5': 'category'})
 
-    def get_random_atc5(ndc_code):
-        atc5_codes = mapping_[mapping_['NDC'] == ndc]['atc5']
-        return np.random.choice(atc5_codes)
+    def get_random_atc5(self, ndc_code):
+        atc5_codes = self.mapping_[self.mapping_['NDC'] == ndc_code]['atc5']
+        return np.random.choice(atc5_codes) if len(atc5_codes) > 0 else None
+    
     def format_ndc_codes(self):
         formatter = NDC_Formatter(self.raw_ndc_codes, test=self.test)
         formatter.format()
         self.formatted_codes = formatter.format_map
         self.inverse_format_map = formatter.get_inverse_format_map()
-
-    def map_code(self, ndc_code):
-        if len(ndc_code) < 11:
-            return None
-        else:
-            ndc_code = self.format_ndc_code(ndc_code)
-            if ndc_code is None:
-                return None
-            atc_code = self.retrieve_code(ndc_code)
-            return atc_code
         
 class NDC_Formatter:
     def __init__(self, raw_ndc_codes, test=True):
+        """Produce ndc codes in the correct format. Currently not employed."""
         self.raw_ndc_codes = raw_ndc_codes
         self.all_ndc_codes = self.get_all_ndc_codes() 
         self.possible_formattings = self.get_possible_formattings()
