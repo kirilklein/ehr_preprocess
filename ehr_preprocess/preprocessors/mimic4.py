@@ -1,5 +1,5 @@
 import pandas as pd
-from mimic_helper import NDC_ATC_Mapper
+from preprocessors.mimic_helper import NDC_ATC_Mapper
 from preprocessors import base
 
 
@@ -82,7 +82,8 @@ class PrescriptionMedicationHandler:
         medication = self.map_ndc_to_atc(medication)
         medication = self.fill_nans_medication(medication)
         medication = self._prepend(medication, prepend)
-
+        return medication
+    
     @staticmethod
     def map_ndc_to_atc(medication):
         mapper_ = NDC_ATC_Mapper(medication)
