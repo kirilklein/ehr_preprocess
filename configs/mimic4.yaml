@@ -40,6 +40,10 @@ concepts:
       names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT, drug]
       usecols: [0, 1, 6, 12, 9]
       parse_dates: [TIMESTAMP]
+      function: 
+        _partial_: true
+        _target_: preprocessors.mimic4.MIMIC4Preprocessor.handle_medication
+        prepend: M
       
 
 patients_info:
