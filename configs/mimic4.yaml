@@ -37,9 +37,10 @@ concepts:
   medication:
     mecication:
       filename: hosp/prescriptions.csv.gz
-      names: [PID, ADMISSION_ID, TIMESTAMP, CONCEPT, drug]
-      usecols: [0, 1, 6, 12, 9]
+      names: [PID, ADMISSION_ID, TIMESTAMP, drug, CONCEPT]
+      usecols: [0, 1, 6, 9, 12]
       parse_dates: [TIMESTAMP]
+      dtype: {CONCEPT: category}
       function: 
         _partial_: true
         _target_: preprocessors.mimic4.MIMIC4Preprocessor.handle_medication
