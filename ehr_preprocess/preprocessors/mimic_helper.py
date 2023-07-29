@@ -6,6 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 import time
+import os
 
 class NDC_ATC_Mapper:
     def __init__(self, raw_ndc_codes, 
@@ -54,6 +55,7 @@ class NDC_ATC_Mapper:
                 self.format_map[raw_code] = [None]
             else:
                 self.find_suitable_format(raw_code)
+
     def retrieve_code(self, ndc_code):
         self.enter_code(ndc_code)
         time.sleep(1)
@@ -183,5 +185,13 @@ class NDC_ATC_Mapper:
         return pd.concat([ndc1, ndc2]).drop_duplicates()
     
     def get_driver(self, driver_exe_path):
+        service = ChromeService(executable_path=driver_exe_path)
+        return  webdriver.Chrome(service=service)
+
+class HIPAA_Mapper:
+    def __init__(self, 
+                 driver_exe_path = "C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\ehr_preprocess\\data\\helper\\ndc_to_atc\\chromedriver-win64\\chromedriver.exe",):                 
+        self.driver = self.get_driver(driver_exe_path)
+            def get_driver(self, driver_exe_path):
         service = ChromeService(executable_path=driver_exe_path)
         return  webdriver.Chrome(service=service)
