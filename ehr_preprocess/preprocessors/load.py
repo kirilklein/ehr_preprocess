@@ -1,9 +1,9 @@
 import importlib
-from types import SimpleNamespace
-import yaml
-from azureml.core import ScriptRunConfig, Environment, Experiment, Dataset, Datastore, Workspace
-from azureml.core.runconfig import MpiConfiguration
 from os.path import join
+
+import yaml
+from azureml.core import Datastore, Workspace
+
 
 def instantiate(config, kwargs={}):
     module_path, class_name = config._target_.rsplit(".", 1)
@@ -51,14 +51,7 @@ class Config(dict):
 
 
 def get_datastore():
-    # get workspace
-    ws = Workspace.from_config()
-    # get compute target
-    target = ws.compute_targets['Kiril-CPU']
-    # get curated environment
-    curated_env_name = 'AzureML-PyTorch-1.6-GPU'
-    env = Environment.get(workspace=ws, name=curated_env_name)
-
+    """Initializes workspase and gets datastor and dump_path"""
     subscription_id = 'f8c5aac3-29fc-4387-858a-1f61722fb57a'
     resource_group = 'forskerpl-n0ybkr-rg'
     workspace_name = 'forskerpl-n0ybkr-mlw'
