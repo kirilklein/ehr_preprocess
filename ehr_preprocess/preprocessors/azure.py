@@ -1,6 +1,4 @@
-import dask.dataframe as dd
 import pandas as pd
-from os.path import join
 import os
 from azureml.core import Dataset
 from tqdm import tqdm
@@ -14,6 +12,7 @@ class AzurePreprocessor():
         self.logger = logger
         self.datastore =  datastore
         self.test = cfg.test
+        self.logger.info(f"test {self.test}")
         self.removed_concepts = {k:0 for k in self.cfg.concepts.keys()} # count concepts that are removed
         self.initial_patients = set()
         self.formatted_patients = set()
@@ -46,14 +45,13 @@ class AzurePreprocessor():
         self.initial_patients = self.initial_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.initial_patients)} before cleaning")
         self.logger.info(f"{len(concepts)} concepts")
-
         concepts = concepts.dropna()
         self.logger.info(f"{len(concepts)} concepts after removing nans")
         concepts = concepts.drop_duplicates()
         self.logger.info(f"{len(concepts)} concepts after dropping duplicates nans")
         self.formatted_patients = self.formatted_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.formatted_patients)} after cleaning")
-        concepts = concepts.set_index('PID')
+        self.logger.info("Add admission id")
         concepts = self.add_admission_id(concepts, admissions)
         return concepts
 
@@ -84,50 +82,66 @@ class AzurePreprocessor():
         df = self.select_columns(df, self.cfg.patients_info)
         # Convert info dict to dataframe
         self.save(df, self.cfg.patients_info, 'patients_info')
-
-    
+        
     def add_admission_id(self, concept_df, adm_df):
         """
         Add unique admission IDs to records. For records within admission times,
         keep existing IDs. For others, generate IDs based on PID and timestamp.
         """
         # Filter records within and outside of admission times
-        concept_df = concept_df.set_index('PID')
+        concept_df["EVENT_ID"] = range(len(concept_df))
         in_adm = self.filter_records_within_admission(concept_df, adm_df)
-        out_adm = concept_df.loc[~concept_df.index.isin(in_adm.index)]
 
+        in_adm_event_ids = in_adm.EVENT_ID.unique()
+        out_adm = concept_df.loc[~concept_df.EVENT_ID.isin(in_adm_event_ids)]
+        
+        # Check that no event is in both in_adm and out_adm
+        assert not any(out_adm.EVENT_ID.isin(in_adm_event_ids))
         # Assign unique admission IDs to records outside of admission times
         out_adm = self.assign_admission_id(out_adm)
-
         # Combine dataframes
         result_df = self.combine_dataframes(out_adm, in_adm)
-
         # Reset index to make PID a column again
-        result_df.reset_index(inplace=True)
+        result_df = result_df.drop(columns=['EVENT_ID'])
 
-        return result_df
+        return result_df.reset_index(drop=True)
+
 
     @staticmethod
     def filter_records_within_admission(concept_df, adm_df):
         """
-        Filter the records that fall within the admission time range.
+        Filter the records that fall within the admission time range and assign to closest admission.
         """
-        merged_df = concept_df.merge(adm_df, left_index=True, right_index=True, how='outer')
-        return merged_df[(merged_df['TIMESTAMP']<merged_df['TIMESTAMP_END']) & (merged_df['TIMESTAMP']>merged_df['TIMESTAMP_START'])]
+        # Reset index and sort values before the merge
+        concept_df = concept_df.reset_index().sort_values("TIMESTAMP")
+        adm_df = adm_df.reset_index().sort_values("TIMESTAMP_START")
 
+        # Merge on PID with outer join to get all combinations
+        merged_df = pd.merge_asof(
+            concept_df, 
+            adm_df, 
+            left_on="TIMESTAMP",
+            right_on="TIMESTAMP_START",
+            by="PID", 
+            direction="nearest"
+        ).drop(columns=["index_x", "index_y"])
+        
+        # Filter to keep only the rows where TIMESTAMP is within the admission time range
+        in_admission = (merged_df['TIMESTAMP']<=merged_df['TIMESTAMP_END']) & (merged_df['TIMESTAMP']>=merged_df['TIMESTAMP_START'])
+        return merged_df[in_admission]
     @staticmethod
     def assign_admission_id(df):
         """
         Assign unique admission IDs to records based on PID and time difference.
         """
         df_sorted = df.sort_values(['TIMESTAMP'])
-        df_sorted['TimeDiff'] = df_sorted.groupby(df_sorted.index)['TIMESTAMP'].diff()
-        df_sorted['NewID'] = df_sorted['TimeDiff'].apply(lambda x: x.total_seconds() > 24*60*60)
-        df_sorted['ID'] = df_sorted.groupby(df_sorted.index)['NewID'].cumsum().astype(int)
-        df_sorted['ID'] = (df_sorted.index.astype(str) + '_' + df_sorted['ID'].astype(str)).apply(lambda x: hashlib.sha256(x.encode()).hexdigest())
+        df_sorted['TimeDiff'] = df_sorted.groupby('PID')['TIMESTAMP'].diff()
+        df_sorted['NewID'] = df_sorted['TimeDiff'].apply(lambda x: 0 if pd.isnull(x) else int(x.total_seconds() > 24*60*60))
+
+        df_sorted['ID'] = df_sorted.groupby('PID')['NewID'].cumsum().astype(int)
+        df_sorted['ID'] = (df_sorted.PID.astype(str) + '_' + df_sorted['ID'].astype(str)).apply(lambda x: hashlib.sha256(x.encode()).hexdigest())
         df_final = df_sorted.drop(columns=['TimeDiff', 'NewID']).rename(columns={'ID':'ADMISSION_ID'})
         return df_final
-
     @staticmethod
     def combine_dataframes(df1, df2):
         """
@@ -137,12 +151,11 @@ class AzurePreprocessor():
         return pd.concat([df1, df2])
 
     def get_admissions(self):
-        """Load admission dataframe and create a SEGMENT column"""
+        """Load admission dataframe and create an ADMISSION_ID column"""
         self.logger.info("Load admissions")
         df = self.load_pandas(self.cfg.admissions)
         df = self.select_columns(df, self.cfg.admissions)
         df['ADMISSION_ID'] = self.assign_hash(df)
-        df = df.set_index('PID')
         return df
     
     @staticmethod
@@ -220,5 +233,8 @@ class AzurePreprocessor():
             df.to_csv(path, index=False, mode=mode)
         else:
             raise ValueError(f"Filetype {file_type} not implemented yet")
+
+    
+
 
     
