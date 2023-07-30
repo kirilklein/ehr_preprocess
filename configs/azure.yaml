@@ -1,32 +1,37 @@
-test: true
+test: false
+run_name: ehr_preprocess
 paths:
-  output_dir: formatted_data/medication_diagnosis
+  output_dir: outputs
+  # output_dir: ../../data/formatted_data/medication_diagnosis
   file_type: parquet
-
+  
 preprocessor:
   _target_: preprocessors.azure.AzurePreprocessor
 
 concepts:
   diagnosis:
     filename: CPMI_Diagnoser.parquet
-    names: ['PID', 'CONCEPT', 'TIMESTAMP']
-    usecols: [0,1,3]
+    keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
+    names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
     dtypes: {CONCEPT: category}
-    npartitions: 100
+    chunksize: 10000000
+    file_type: csv
 
   medication:
     filename: CPMI_Medicin.parquet
-    names: [PID, CONCEPT, TIMESTAMP]
-    usecols: [0, 4, 6]
-    dtypes: {CONCEPT: category}  
-    npartitions: 100
+    keep_cols: [CPR_hash, ATC, Administrationstidspunkt]
+    dtypes: {CONCEPT: category, 'PID': category}  
+    chunksize: 10000000
+    start_chunk: 0
+    file_type: csv
     
 admissions:
     filename: CPMI_ADTHaendelser.parquet
-    names: ['PID', 'TIMESTAMP', 'TIMESTAMP_END']
+    names: [PID, TIMESTAMP_START, TIMESTAMP_END]
     usecols: [0, 1, 2]
 
 patients_info:
     filename: CPMI_PatientInfo.parquet
     names: [PID, BIRTHDATE, DEATHDATE, GENDER]
     usecols: [0, 1, 2, 3]
+    file_type: parquet
