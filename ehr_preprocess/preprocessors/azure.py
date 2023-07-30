@@ -82,7 +82,7 @@ class AzurePreprocessor():
         df = self.select_columns(df, self.cfg.patients_info)
         # Convert info dict to dataframe
         self.save(df, self.cfg.patients_info, 'patients_info')
-
+        
     def add_admission_id(self, concept_df, adm_df):
         """
         Add unique admission IDs to records. For records within admission times,
@@ -233,5 +233,8 @@ class AzurePreprocessor():
             df.to_csv(path, index=False, mode=mode)
         else:
             raise ValueError(f"Filetype {file_type} not implemented yet")
+
+    
+
 
     
