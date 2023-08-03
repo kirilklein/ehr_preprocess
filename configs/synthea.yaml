@@ -1,5 +1,9 @@
 paths:
-  main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
+  # main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
+  # output_dir: formatted_data/synthea500_icd10_test
+  # main_folder: C:\Users\14552\Desktop\block_5\code\data_raw
+  # output_dir: C:\Users\14552\Desktop\block_5\code\data_raw
+  main_folder: C:\Users\14552\Desktop\block_5\code\data_raw\batch1\csv
   output_dir: formatted_data/synthea500_icd10_test
   file_type: csv
 
@@ -13,6 +17,12 @@ concepts:
       filename: conditions.csv
       names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT,]
       usecols: [0, 2, 3, 4]
+
+  medication:
+    administered:
+      filename: medications.csv
+      names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT, MEDICATION]
+      usecols: [0, 2, 4, 5, 6]
 
   # medication:
     # administered:
