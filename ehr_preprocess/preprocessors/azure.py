@@ -66,7 +66,10 @@ class AzurePreprocessor():
         return diag
     @staticmethod
     def format_medication(med):
-        med.loc[:, 'CONCEPT'] = med.ATC.fillna('Ordineret_lægemiddel')
+        try:
+            med.loc[:, 'CONCEPT'] = med.ATC.fillna('Ordineret_lægemiddel')
+        except:
+            pass
         med.loc[:, 'TIMESTAMP'] = med.Administrationstidspunkt.fillna("Bestillingsdato")
         med = med.rename(columns={'CPR_hash':'PID'})
         med = med[['PID','CONCEPT','TIMESTAMP']]
