@@ -1,9 +1,8 @@
 from preprocessors.base import BasePreprocessor
 import pandas as pd
-
+PREPENDS = {'diagnose': 'D', 'medication': 'M', 'procedure': 'P', 'lab': 'L', 'vital': 'V'}
 class SyntheaPrepocessor(BasePreprocessor):
     # __init__ is inherited from BasePreprocessor
-
     def concepts(self):
         # Loop over all top-level concepts (diagnosis, medication, procedures, etc.)
         for type, top_level_config in self.config.concepts.items():
@@ -11,8 +10,10 @@ class SyntheaPrepocessor(BasePreprocessor):
             combined = pd.concat(individual_dfs)
             combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
             combined = combined.sort_values('TIMESTAMP')
-            combined = self.map_snomed_to_icd10(combined)
-            combined = self.clean_concepts(combined)
+            combined.CONCEPT = combined.CONCEPT.astype(str)
+            if type=='diagnose':
+                combined = self.map_snomed_to_icd10(combined)
+            combined = self.clean_concepts(combined, type)
             self.save(combined, f'concept.{type}')
 
     @staticmethod        
@@ -25,12 +26,12 @@ class SyntheaPrepocessor(BasePreprocessor):
         return combined
     
     @staticmethod
-    def clean_concepts(combined):
+    def clean_concepts(combined, type):
         """Clean up the concepts"""
         combined.CONCEPT = combined.CONCEPT.str.rstrip("?")
         combined.CONCEPT = combined.CONCEPT.str.replace(".", "")
         # add D to the beginning of CONCEPT 
-        combined.CONCEPT = "D" + combined.CONCEPT
+        combined.CONCEPT = PREPENDS[type] + combined.CONCEPT
         combined = combined.dropna(subset=["CONCEPT"])
         return combined
 

@@ -1,6 +1,6 @@
 paths:
   main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
-  output_dir: formatted_data/synthea500_icd10_test
+  output_dir: ../data/formatted/synthea500
   file_type: csv
 
 preprocessor:
@@ -14,11 +14,12 @@ concepts:
       names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT,]
       usecols: [0, 2, 3, 4]
 
-  # medication:
-    # administered:
-      # filename: medications.csv
-      # names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT]
-      # usecols: [0, 2, 4, 5]
+  medication:
+    administered:
+      filename: medications.csv
+      names: [TIMESTAMP, PID, ADMISSION_ID, CONCEPT, RESULT]
+      usecols: [0, 2, 4, 5, 9]
+
 admissions:
   admission:
     filename: medications.csv
