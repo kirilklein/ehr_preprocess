@@ -18,9 +18,9 @@ _DATASTORES = {
     "workspaceartifactstore"
 }
 _WS_CONFIG = {
-    "subscription_id": "f8c5aac3-29fc-4387-858a-1f61722fb57a",
-    "resource_group": "forskerpl-n0ybkr-rg",
-    "workspace_name": "forskerpl-n0ybkr-mlw"
+    "subscription_id": "",
+    "resource_group": "",
+    "workspace_name": ""
 }
 _WS = None
 
