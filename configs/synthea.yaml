@@ -1,5 +1,5 @@
 paths:
-  main_folder: C:/Users/fjn197/PhD/projects/PHAIR/pipelines/synthea/output/synthea500/csv
+  main_folder: ../example_data
   output_dir: ../data/formatted/synthea500
   file_type: csv
 
