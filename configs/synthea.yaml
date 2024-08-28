@@ -1,5 +1,5 @@
 paths:
-  main_folder: ../example_data
+  main_folder: ../example_data/csv_synthea500
   output_dir: ../data/formatted/synthea500
   file_type: csv
 
