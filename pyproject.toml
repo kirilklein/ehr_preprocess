@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64.0", "setuptools-scm>=8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ehr_preprocess"
+dynamic = ["version"]
+description = "A preprocessing pipeline for electronic health records."
+authors = [
+    { name = "Kiril Klein", email = "your.email@example.com" },
+    { name = "Mikkel Odgaard", email = "example.email@example.com"},
+]
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "hydra-core",
+    "dask[complete]",
+    "pandas",
+    "numpy",
+    "pyarrow",
+    "meds",
+    "MEDS-transforms",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "flake8",
+    # Add other development dependencies here
+]
+[tool.setuptools_scm]
+[tool.setuptools.packages.find]
+where = ["."]
