@@ -1,4 +1,4 @@
-from preprocessors.base import BasePreprocessor
+from ehr_preprocess.preprocessors.base import BasePreprocessor
 import pandas as pd
 PREPENDS = {'diagnose': 'D', 'medication': 'M', 'procedure': 'P', 'lab': 'L', 'vital': 'V'}
 class SyntheaPrepocessor(BasePreprocessor):
