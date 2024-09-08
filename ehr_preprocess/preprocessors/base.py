@@ -55,7 +55,7 @@ class BasePreprocessor():
         self.save(df, 'patients_info')
 
     def set_patient_info(self, df: pd.DataFrame):
-        df = df.set_index('PID')
+        df = df.set_index('pid_col')
         df.apply(lambda patient:
             self.info.get(patient.name)             # patient.name is the index PID
             .update(
@@ -87,9 +87,9 @@ class BasePreprocessor():
                 TIMESTAMP=timestamp
             )
 
-    def info_to_df(self):
+    def info_to_df(self, pid_col: str='PID'):
         df = pd.DataFrame.from_dict(self.info, orient="index")
-        df = df.reset_index().rename(columns={'index': 'PID'})    # Convert the PID index to PID column
+        df = df.reset_index().rename(columns={'index': pid_col})    # Convert the PID index to PID column
         return df
 
     def load_csv(self, cfg: dict):

@@ -1,6 +1,6 @@
 import pandas as pd
-from preprocessors.mimic_helper import NDC_ATC_Mapper
-from preprocessors import base
+from ehr_preprocess.preprocessors.mimic_helper import NDC_ATC_Mapper
+from ehr_preprocess.preprocessors import base
 
 
 class MIMIC4Preprocessor(base.BasePreprocessor):
