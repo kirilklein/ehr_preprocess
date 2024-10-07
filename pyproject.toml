@@ -10,7 +10,7 @@ authors = [
     { name = "Kiril Klein", email = "your.email@example.com" },
     { name = "Mikkel Odgaard", email = "example.email@example.com"},
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -18,12 +18,9 @@ classifiers = [
 ]
 dependencies = [
     "hydra-core",
-    "dask[complete]",
     "pandas",
     "numpy",
     "pyarrow",
-    "meds",
-    "MEDS-transforms",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +29,11 @@ dev = [
     "black",
     "flake8",
     # Add other development dependencies here
+]
+meds = [
+    "dask[complete]",
+    "meds",
+    "MEDS-transforms>=0.0.7",
 ]
 [tool.setuptools_scm]
 [tool.setuptools.packages.find]
