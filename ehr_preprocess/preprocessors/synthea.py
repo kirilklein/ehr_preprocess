@@ -1,6 +1,9 @@
 from ehr_preprocess.preprocessors.base import BasePreprocessor
 import pandas as pd
+import os
+
 PREPENDS = {'diagnose': 'D', 'medication': 'M', 'procedure': 'P', 'lab': 'L', 'vital': 'V'}
+
 class SyntheaPrepocessor(BasePreprocessor):
     # __init__ is inherited from BasePreprocessor
     def concepts(self):
@@ -28,7 +31,15 @@ class SyntheaPrepocessor(BasePreprocessor):
     @staticmethod
     def get_snomed_to_icd10_mapping():
         """Get the mapping from snomed to icd10 codes"""
-        map_df = pd.read_csv("..\\data\\helper\\tls_Icd10cmHumanReadableMap_US1000124_20230301.tsv", sep="\t", )
+        
+        # Get the directory of the current file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Construct the path to the mapping file
+        mapping_file = os.path.join(current_dir, "..", "..", "data", "helper", "tls_Icd10cmHumanReadableMap_US1000124_20230301.tsv")
+        
+        # Read the mapping file
+        map_df = pd.read_csv(mapping_file, sep="\t")
         map_df = map_df.drop_duplicates(subset="referencedComponentId", keep="first")
         map_df.dropna(subset=["mapTarget"], inplace=True)
         snomed_to_icd10 = map_df.set_index("referencedComponentId").mapTarget.to_dict() 
