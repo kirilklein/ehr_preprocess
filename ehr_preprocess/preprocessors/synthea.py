@@ -1,6 +1,7 @@
 from ehr_preprocess.preprocessors.base import BasePreprocessor
 import pandas as pd
 import os
+import multiprocessing
 
 PREPENDS = {'diagnose': 'D', 'medication': 'M', 'procedure': 'P', 'lab': 'L', 'vital': 'V'}
 
@@ -9,19 +10,26 @@ class SyntheaPrepocessor(BasePreprocessor):
     def __init__(self, cfg):
         super().__init__(cfg)
         self.logger.info("SyntheaPreprocessor initialized")
-        
+        self.num_processes = cfg.num_processes
+
     def concepts(self):
-        # Loop over all top-level concepts (diagnosis, medication, procedures, etc.)
-        for type, top_level_config in self.config.concepts.items():
-            individual_dfs = [self.load_csv(cfg) for cfg in top_level_config.values()]
-            combined = pd.concat(individual_dfs)
-            combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
-            combined = combined.sort_values(['PID','TIMESTAMP'])
-            if type=='diagnose':
-                combined = self.map_snomed_to_icd10(combined)
-            combined.CONCEPT = combined.CONCEPT.astype(str)
-            combined = self.clean_concepts(combined, type)
-            self.save(combined, f'concept.{type}')
+        with multiprocessing.Pool(self.num_processes) as pool:
+            results = pool.map(self.process_concept, self.config.concepts.items())
+        
+        for result in results:
+            self.save(result[0], f'concept.{result[1]}')
+
+    def process_concept(self, item):
+        type, top_level_config = item
+        individual_dfs = [self.load_csv(cfg) for cfg in top_level_config.values()]
+        combined = pd.concat(individual_dfs)
+        combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
+        combined = combined.sort_values(['PID','TIMESTAMP'])
+        if type == 'diagnose':
+            combined = self.map_snomed_to_icd10(combined)
+        combined.CONCEPT = combined.CONCEPT.astype(str)
+        combined = self.clean_concepts(combined, type)
+        return combined, type
 
     @staticmethod        
     def map_snomed_to_icd10(combined):
