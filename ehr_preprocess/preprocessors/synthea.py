@@ -6,6 +6,10 @@ PREPENDS = {'diagnose': 'D', 'medication': 'M', 'procedure': 'P', 'lab': 'L', 'v
 
 class SyntheaPrepocessor(BasePreprocessor):
     # __init__ is inherited from BasePreprocessor
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.logger.info("SyntheaPreprocessor initialized")
+        
     def concepts(self):
         # Loop over all top-level concepts (diagnosis, medication, procedures, etc.)
         for type, top_level_config in self.config.concepts.items():

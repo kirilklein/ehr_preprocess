@@ -1,5 +1,6 @@
 import json
 import os
+import logging
 from os.path import dirname, join, realpath, split
 
 import pandas as pd
@@ -12,36 +13,62 @@ class BasePreprocessor():
             cfg, 
         ):
         self.config = cfg
-        self.set_test(cfg)
         self.info = {}
         self.admission_info = {}
 
         if not os.path.exists(self.config.paths.output_dir):
             os.makedirs(self.config.paths.output_dir)
-            
+        
+        # Set up logging
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        # File handler
+        fh = logging.FileHandler(join(self.config.paths.output_dir, 'preprocessing.log'))
+        fh.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        
+        # Console handler
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        self.logger.addHandler(ch)
+        
+        self.logger.info("Preprocessor initialized")
+        
+        # Move set_test after logger initialization
+        self.set_test(cfg)
+
     def set_test(self, cfg):
         if 'test' in cfg:
             self.test = cfg.test
         else:
             self.test = False
+        self.logger.info(f"Test mode: {self.test}")
 
     def __call__(self):
+        self.logger.info("Starting preprocessing")
         self.process()
+        self.logger.info("Preprocessing completed")
 
     # All saving is handled internally in the functions below
     def process(self):
+        self.logger.info("Processing concepts")
         self.concepts()
+        self.logger.info("Processing patient info")
         self.patients_info()
 
     def concepts(self):
         # Loop over all top-level concepts (diagnosis, medication, procedures, etc.)
         for type, top_level_config in self.config.concepts.items():
+            self.logger.info(f"Processing concept: {type}")
             individual_dfs = [self.load_csv(cfg) for cfg in top_level_config.values()]
             combined = pd.concat(individual_dfs)
             combined = combined.drop_duplicates(subset=['PID', 'CONCEPT', 'TIMESTAMP'])
             combined = combined.sort_values('TIMESTAMP')
 
             self.save(combined, f'concept.{type}')
+            self.logger.info(f"Saved concept: {type}")
 
     def patients_info(self):
         for key, cfg in self.config.patients_info.items():
@@ -154,7 +181,7 @@ class BasePreprocessor():
         elif self.config.paths.file_type == 'csv':
             path = os.path.join(self.config.paths.output_dir, f'{filename}.csv')
             df.to_csv(path, index=False)
-
+        self.logger.info(f"Saved file: {filename}")
 
 class BaseMIMICPreprocessor():
     def __init__(self, cfg, test=False) -> None:
@@ -202,7 +229,5 @@ class BaseMIMICPreprocessor():
         }
         if file not in self.metadata_dic:
             self.metadata_dic[file] = concept_dic
-    
 
 
-    
