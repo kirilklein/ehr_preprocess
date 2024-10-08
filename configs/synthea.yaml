@@ -4,7 +4,7 @@ paths:
   file_type: csv
 
 preprocessor:
-  _target_: preprocessors.synthea.SyntheaPrepocessor
+  _target_: ehr_preprocess.preprocessors.synthea.SyntheaPrepocessor
   _recursive_: false
 
 concepts:
