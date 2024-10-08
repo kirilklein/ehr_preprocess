@@ -55,7 +55,7 @@ class BasePreprocessor():
         self.save(df, 'patients_info')
 
     def set_patient_info(self, df: pd.DataFrame):
-        df = df.set_index('pid_col')
+        df = df.set_index('PID')
         df.apply(lambda patient:
             self.info.get(patient.name)             # patient.name is the index PID
             .update(
