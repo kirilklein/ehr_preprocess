@@ -194,7 +194,7 @@ class AzurePreprocessor():
 
         for index, row in df_sorted.iterrows():
             pid = row['PID']
-            timestamp = row['TIMESTAMP']
+            timestamp = pd.to_datetime(row['TIMESTAMP'])
             
             # Find matching admission periods within ±24 hours
             matching_adm = out_adm_file[
