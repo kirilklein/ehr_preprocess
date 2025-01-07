@@ -5,8 +5,8 @@ ws = Workspace.from_config()
 
 job_name = sys.argv[1]
 
-env = Environment.get(ws, name="Aiomic-Deploy")
+env = Environment.get(ws, "PHAIR", version="23")
 
 ct = "CPU-20-LP"
 src = ScriptRunConfig(source_directory=".", script=job_name+".py", compute_target=ct, environment=env)
-Experiment(ws, name="Format_EHR").submit(src)
+Experiment(ws, name="Preprocess_EHR").submit(src)
