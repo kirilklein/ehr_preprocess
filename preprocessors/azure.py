@@ -72,7 +72,7 @@ class AzurePreprocessor():
     def concepts_process_pipeline(self, concepts, admissions, concept_type, cfg):
         """Process concepts"""
         formatter = getattr(self, f"format_{concept_type}")
-        concepts = formatter(concepts, cfg.formatter_args)
+        concepts = formatter(concepts, cfg)
         self.initial_patients = self.initial_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.initial_patients)} before cleaning")
         self.logger.info(f"{len(concepts)} concepts")
@@ -97,10 +97,10 @@ class AzurePreprocessor():
         return filtered_chunk
 
     @staticmethod
-    def format_diagnosis(diag, args):
+    def format_diagnosis(diag, cfg):
         # Search code in diagnoses. If there is no diagnosis code, use the diagnosis extracted from the text
         diag['code'] = diag['Diagnose'].str.extract(r'\((D.*?)\)', expand=False)
-        if 'fill_diags' in args and args['fill_diags']:
+        if 'fill_diags' in cfg and cfg['fill_diags']:
             diag['code'] = diag['code'].fillna(diag['Diagnose'])
         diag['CONCEPT'] = diag.Diagnosekode.fillna(diag.code)
         diag = diag.drop(['code', 'Diagnose', 'Diagnosekode'], axis=1)
@@ -108,7 +108,7 @@ class AzurePreprocessor():
         return diag
 
     @staticmethod
-    def format_procedure(proc, args):
+    def format_procedure(proc, cfg):
         proc['CONCEPT'] = proc['ProcedureCode'].str.replace(' ', '')
         proc = proc.drop(['ProcedureCode'], axis=1)
         proc = proc.rename(columns={'CPR_hash':'PID', 'ServiceDatetime':'TIMESTAMP'})
@@ -116,13 +116,13 @@ class AzurePreprocessor():
         return proc
 
     @staticmethod
-    def format_labtest(labs, args):
+    def format_labtest(labs, cfg):
         labs = labs.rename(columns={'CPR_hash':'PID', 'BestOrd':'CONCEPT', 'Bestillingsdato': 'TIMESTAMP', 'Resultatværdi':'RESULT'})
         labs['CONCEPT'] = labs['CONCEPT'].map(lambda x: 'LAB'+x)
         return labs
     
     @staticmethod
-    def format_medication(med, args):
+    def format_medication(med, cfg):
         med.loc[:, 'CONCEPT'] = med.ATC.fillna('Ordineret_lægemiddel')
         med.loc[:, 'TIMESTAMP'] = med.Administrationstidspunkt.fillna("Bestillingsdato")
         med = med.rename(columns={'CPR_hash':'PID'})

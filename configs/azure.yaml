@@ -12,9 +12,6 @@ paths:
 preprocessor:
   _target_: preprocessors.azure.AzurePreprocessor
 
-formatter_args:
-  fill_diags: false
-
 concepts:
   diagnosis:
     filename: CPMI_Diagnoser.parquet
@@ -23,6 +20,7 @@ concepts:
     dtypes: {CONCEPT: category}
     chunksize: 10000000
     file_type: csv
+    fill_diags: false
 
   procedure:
     filename: CPMI_Procedurer.parquet
