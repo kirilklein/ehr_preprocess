@@ -1,175 +1,108 @@
-"""aiomic.core provides core functionality.
-
-Core functionality includes e.g. loading and saving of datasets, manipulating runs,
-making backups to a separate datastore, and more...
-"""
-
-from azureml.core import Dataset, Datastore, Workspace, Model
 import os
-import pandas as pd
+import json
+from azureml.core import Dataset
 
-def log():
-    return logger.log(name=__name__)
+_BACKUP_DATASTORE = "researcher_data"
+_BACKUP_ROOT_DIR  = "data-backup"
 
+def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_compare=True, post_validate_func=None):
+    global _BACKUP_DATASTORE, _BACKUP_ROOT_DIR
+    from . import log, datastore, dataset as load_dataset
 
-_DATASTORES = {
-    "workspaceblobstore",
-    "sp_data",
-    "researcher_data",
-    "workspaceartifactstore"
-}
-_WS_CONFIG = {
-    "subscription_id": "f8c5aac3-29fc-4387-858a-1f61722fb57a",
-    "resource_group": "forskerpl-n0ybkr-rg",
-    "workspace_name": "forskerpl-n0ybkr-mlw"
-}
-_WS = None
+    # Validate
+    if type(name)!=str:        raise Exception(f"Invalid parameter 'name', expected type str.")
+    if type(remote_path)!=str: raise Exception(f"Invalid parameter 'remote_name', expected type str.")
+    # Clean path
+    if remote_path[0] == "/": remote_path = remote_path[1:]
+    elif remote_path[:2] == "./": remote_path = remote_path[2:]
+    if remote_path[-1] == "/": remote_path = remote_path[:-1]
 
-def workspace() -> Workspace:
-    """Load workspace with authentication
+    # Get datastore and full remote path
+    dast = datastore(name=_BACKUP_DATASTORE)
+    full_remote_path = f"{_BACKUP_ROOT_DIR}/{remote_path}/{name}"
 
-    Returns
-    -------
-    Workspace
-        An authenticated AzureML workspace object
-    """
-    global _WS_CONFIG
-    global _WS
-    if _WS is None:
-        if Run.is_remote():
-            _WS = Run.init().remote.experiment.workspace
-        else:
-            _WS = Workspace(_WS_CONFIG["subscription_id"], _WS_CONFIG["resource_group"], _WS_CONFIG["workspace_name"])
-    return _WS
-
-def datastore(name: str = "workspaceblobstore") -> Datastore:
-    """Load requested datastore.
-
-    Parameters
-    ----------
-    name : str
-        The name of the datastore to load (default='workspaceblobstore').
-
-    Returns
-    -------
-    Datastore
-        An AzureML datastore object.
-    """
-    global _DATASTORES
-    if name not in _DATASTORES:
-        raise Exception(f"Unknown datastore: {name}")
-    ws = workspace()
-    return Datastore.get(ws, name)
-
-def dataset(name: str, version: int = None) -> Dataset:
-    """Load requested dataset
-
-    Parameters
-    ----------
-    name : str
-        The name of the dataset to load.
-    version : int
-        The version of the dataset to load (default is newest).
-
-    Returns
-    -------
-    Dataset
-        An AzureML dataset object.
-    """
-    return Dataset.get_by_name(workspace(), name, version=version)
+    tmp_dir = "./._backup_"
+    local_dir = f"{tmp_dir}/{name}/"
     
-_DS_LIST_CACHE = None
+    # Get dataset
+    log().info(f"Making backup of dataset {name}.")
+    ds = load_dataset(name)
+    log().debug(f"Fetching dataset...")
+    df = ds.to_pandas_dataframe()
+    log().info(f"Loaded {name}:{ds.version}, got {len(df)} rows with {len(df.columns)} columns!")
 
-def dataset_save(df: pd.DataFrame, name: str, tags: dict = None, description: str = None):
-    """Save given dataset.
+    if not overwrite_ok:
+        # Check file does not exist already
+        found = False
+        try:
+            ds = Dataset.Tabular.from_parquet_files((dast,full_remote_path+"/data.parquet"))
+            found = True
+        except Exception as e:
+            # Should give an exception
+            if not e.error_code == "ScriptExecution.StreamAccess.NotFound":
+                # Unexpected exception?
+                raise Exception(f"Looking for dataset @ {(_BACKUP_DATASTORE,full_remote_path)} caused an unexpected exception: {e}.")
+        
+        if found: raise Exception(f"Cannot make backup of {name}, backup {(_BACKUP_DATASTORE,full_remote_path)} already exists. Set ovewrite_ok=True to ignore!")
 
-    Parameters
-    ----------
-    df : Pandas DataFrame
-        DataFrame to save.
-    name : str
-        The name of the dataset to save.
-    tags : dict(str: any)
-        Dictionary of tags (values will be converted to str).
-    description : str
-        Description for the dataset.
-
-    Returns
-    -------
-    Dataset
-        The AzureML dataset object created for the dataset.
-    """
-    global _DS_LIST_CACHE
-    _DS_LIST_CACHE = None # Invalidate cache
-    return Dataset.Tabular.register_pandas_dataframe(df, datastore(), name, show_progress=False, tags=tags, description=description)
-
-def file_dataset_save(local_path: str, name: str, tags: dict = None, description: str = None, datastore_name = "workspaceblobstore", remote_path = "aiomic/datasets/"):
-    """Save given file dataset (given as txt files in a local directory).
-
-    Parameters
-    ----------
-    local_path : str
-        Path to local directory containing files.
-    name : str
-        The name of the dataset to save.
-    tags : dict(str: any)
-        Dictionary of tags (values will be converted to str).
-    description : str
-        Description for the dataset.
-
-    Returns
-    -------
-    Dataset
-        The AzureML dataset object created for the dataset.
-    """
-    global _DS_LIST_CACHE
-    _DS_LIST_CACHE = None # Invalidate cache
-
-    dtst = datastore(name=datastore_name)
-
-    remote_path = remote_path if remote_path[-1] == "/" else remote_path + "/"
-
-    ds = Dataset.File.upload_directory(local_path, (dtst, remote_path+name))
+    try:
+        # Store locally
+        log().info(f"Storing files locally!")
+        # Create temporary directory
+        os.makedirs(local_dir)
+        # Store ds as local file
+        df.to_parquet(local_dir+"data.parquet")
+        # Store meta
+        with open(local_dir+"meta.json", "w") as fm:
+            fm.write(json.dumps({
+                "name":ds.name,
+                "version":ds.version,
+                "tags":ds.tags,
+            }))
+        
+        # Upload to datastore
+        log().info(f"Uploading to datastore {_BACKUP_DATASTORE}:{full_remote_path}...")
+        Dataset.File.upload_directory(local_dir, (dast,full_remote_path))
+        log().info("File upload successful!")
+    except Exception as e:
+        # Clean up and report failure
+        log().error(f"Failed to backup dataset: {name}:{ds.version} to {(dast,full_remote_path)}!")
+        raise e
+    finally:
+        # Clean-up
+        log().debug("Cleaning up temporary data...")
+        try: os.remove(local_dir+"meta.json")
+        except OSError: pass
+        try: os.remove(local_dir+"data.parquet")
+        except OSError: pass
+        try: os.rmdir(local_dir)
+        except OSError: pass
+        try: os.rmdir(tmp_dir)
+        except OSError: pass
     
-    # Register
-    return ds.register(workspace=workspace(), name=name, tags=tags, description=description, create_new_version=True)
+    # Post validation
+    if post_validate_compare or post_validate_func is not None:
+        ds = Dataset.Tabular.from_parquet_files((dast,full_remote_path+"/data.parquet"))
+        df_backup = ds.to_pandas_dataframe()
+            
+        if post_validate_compare:
+            log().info("Performing post-validation (comparison)...")
+            if (df.columns!=df_backup.columns).any() or len(df) != len(df_backup):
+                log().error("Post-validation (comparison) failed!")
+                raise Exception("Post-validation (comparison) failed!")
+            log().info("Validation (comparison) passed!")
+        if post_validate_func is not None:
+            log().info("Performing post-validation (custom)...")
+            if post_validate_func(df_backup):
+                log().error("Post-validation  (custom) failed!")
+                raise Exception("Post-validation  (custom) failed!")
+            log().info("Validation (custom) passed!")
 
-def dataset_list(tags=None):
-    """List datasets registered with the default workspace.
+def file(path, remote_location, overwrite_ok=False):
+    from . import log
+    raise Exception("Not implemented!")
 
-    Parameters
-    ----------
-    tags : set of str or list of tuples (str, str)
-        Set of tags or list of tuples (tag, value). Datasets matching at
-        least one tag/tag pair will be returned.
 
-    Returns
-    -------
-    list
-        A list of dicts with keys: name, tags, version, description.
-    """
-    global _DS_LIST_CACHE
-    if _DS_LIST_CACHE is None:
-        # Update cache
-        log().debug(f"Fetching dataset list cache...")
-        _DS_LIST_CACHE = Dataset.get_all(workspace())
-    
-    # Prepare filter
-    filt = lambda ts: True
-    if type(tags)==set:
-        filt = lambda ts: len(ts.keys()&tags)>0
-    elif type(tags)==list:
-        filt = lambda ts: any([ts.get(t)==v for t,v in tags])
-    res = []
-    for ds_name, ds in _DS_LIST_CACHE.items():
-        if filt(ds.tags):
-            res.append({"name":ds_name,"tags":ds.tags,"version":ds.version,"description":ds.description})
-    return res
-    
 
-from . import backup
-from . import logger
-from .run import Run
-from .model import Model
-from .validation import validate
+
 

@@ -54,5 +54,6 @@ admissions:
 
 patients_info:
     filename: CPMI_PatientInfo.parquet
-    names: [PID, TIMESTAMP_START, TIMESTAMP_END, ADM_ID]
+    names: [PID, BIRTHDATE, DEATHDATE, GENDER]
+    usecols: [0, 1, 2, 3]
     file_type: parquet
