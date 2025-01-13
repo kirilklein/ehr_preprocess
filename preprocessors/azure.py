@@ -184,8 +184,8 @@ class AzurePreprocessor():
             (merged_df['TYPE'] == 'IN')
         )
         out_admission = (
-            (merged_df['TIMESTAMP'] <= merged_df['TIMESTAMP_END'] + pd.Timedelta(days=3)) &
-            (merged_df['TIMESTAMP'] >= merged_df['TIMESTAMP_START'] - pd.Timedelta(days=3)) &
+            (merged_df['TIMESTAMP'] <= merged_df['TIMESTAMP_END'] + pd.Timedelta(days=2)) &
+            (merged_df['TIMESTAMP'] >= merged_df['TIMESTAMP_START'] - pd.Timedelta(days=2)) &
             (merged_df['TYPE'] == 'OUT')
         )
         existing_admissions = in_admission | out_admission
@@ -210,10 +210,9 @@ class AzurePreprocessor():
             lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
         )
 
-        # Update adm_file with new admissions
         new_admissions = df_sorted.groupby(['PID', 'NEW_ADMISSION']).agg(
             TIMESTAMP_START=('TIMESTAMP', 'min'),
-            TIMESTAMP_END=('TIMESTAMP', 'max'),
+            TIMESTAMP_END=('TIMESTAMP', 'max')
         ).reset_index()
         new_admissions['TYPE'] = 'OUT'
 
