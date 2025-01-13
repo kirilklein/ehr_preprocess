@@ -20,7 +20,7 @@ class AzurePreprocessor():
         self.removed_concepts = {k:0 for k in self.cfg.concepts.keys()} # count concepts that are removed
         self.initial_patients = set()
         self.formatted_patients = set()
-        self.out_adm_file = None
+        self.adm_file = None
 
     def __call__(self):
         self.patients_info()
@@ -40,10 +40,10 @@ class AzurePreprocessor():
             df = self.filter_dates_pipeline(df, concept_config)
             self.save(df, concept_config, f'concept.{concept_type}')
 
-    def iterate_through_file(self, admissions, concept_type, concept_config, first=True):
+    def iterate_through_file(self, concept_type, concept_config, first=True):
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
             # process each chunk here.
-            chunk_processed = self.concepts_process_pipeline(chunk, admissions, concept_type, concept_config)
+            chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
             if first:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
                 first = False
@@ -52,7 +52,7 @@ class AzurePreprocessor():
 
     def format_concepts(self):
         """Loop over all top-level concepts (diagnosis, medication, procedures, etc.) and call processing"""
-        admissions = self.get_admissions() # to assign admission_id
+        self.get_admissions() # to assign admission_id
         for concept_type, concept_config in tqdm(self.cfg.concepts.items(), desc="Concepts"):
             if concept_type not in ['diagnosis', 'medication', 'labtest', 'procedure']:
                 raise ValueError(f'{concept_type} not implemented yet')
@@ -62,14 +62,14 @@ class AzurePreprocessor():
             if type(concept_config.filename) == list:
                 for file_name in concept_config.filename:
                     concept_config.filename = file_name
-                    self.iterate_through_file(admissions, concept_type, concept_config, first=first)
+                    self.iterate_through_file(concept_type, concept_config, first=first)
                     first=False
             else:
-                self.iterate_through_file(admissions, concept_type, concept_config)
-        combine_and_save_admissions = self.save_adm(admissions, self.out_adm_file)
+                self.iterate_through_file(concept_type, concept_config)
+        self.save_adm(self.adm_file)
 
 
-    def concepts_process_pipeline(self, concepts, admissions, concept_type, cfg):
+    def concepts_process_pipeline(self, concepts, concept_type, cfg):
         """Process concepts"""
         formatter = getattr(self, f"format_{concept_type}")
         concepts = formatter(concepts, cfg)
@@ -87,7 +87,7 @@ class AzurePreprocessor():
         self.formatted_patients = self.formatted_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.formatted_patients)} after cleaning")
         self.logger.info("Add admission id")
-        concepts = self.add_admission_id(concepts, admissions)
+        concepts = self.add_admission_id(concepts)
         return concepts
     
     def filter_dates_pipeline(self, chunk, filter_date):
@@ -118,7 +118,7 @@ class AzurePreprocessor():
     @staticmethod
     def format_labtest(labs, cfg):
         labs = labs.rename(columns={'CPR_hash':'PID', 'BestOrd':'CONCEPT', 'Bestillingsdato': 'TIMESTAMP', 'Resultatværdi':'RESULT'})
-        labs['CONCEPT'] = labs['CONCEPT'].map(lambda x: 'LAB'+x)
+        labs['CONCEPT'] = labs['CONCEPT'].map(lambda x: 'LAB_'+x)
         return labs
     
     @staticmethod
@@ -140,113 +140,96 @@ class AzurePreprocessor():
         # Convert info dict to dataframe
         self.save(df, self.cfg.patients_info, 'patients_info')
 
-    def add_admission_id(self, concept_df, adm_df):
+    def add_admission_id(self, concept_df):
         """
         Add unique admission IDs to records. For records within admission times,
         keep existing IDs. For others, generate IDs based on PID and timestamp.
         """
         # Filter records within and outside of admission times
-        in_adm, out_adm = self.filter_records_within_admission(concept_df, adm_df)
-        
+        in_adm, out_adm = self.filter_records_with_exisiting_admission(concept_df, self.adm_file)
         # Assign unique admission IDs to records outside of admission times
-        out_adm, self.out_adm_file = self.assign_admission_id(out_adm, self.out_adm_file)
+        out_adm, self.adm_file = self.assign_admission_id(out_adm, self.adm_file)
         # Combine dataframes
-        result_df = self.combine_dataframes(out_adm, in_adm)
-        # Reset index to make PID a column again
-        result_df = result_df.drop(columns=['EVENT_ID', 'ADMISSION', 'DISCHARGE'])
+        result_df = pd.concat([in_adm, out_adm])
+
+        result_df = result_df.drop(columns=['TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE'])
 
         return result_df.reset_index(drop=True)
 
 
     @staticmethod
-    def filter_records_within_admission(concept_df, adm_df):
+    def filter_records_with_exisiting_admission(concept_df, adm_df):
         """
         Filter the records that fall within the admission time range and assign to closest admission.
         """
         # Reset index and sort values before the merge
+        concept_df['TIMESTAMP'] = pd.to_datetime(concept_df['TIMESTAMP'])
         concept_df = concept_df.reset_index().sort_values("TIMESTAMP")
-        adm_df = adm_df.reset_index().sort_values("ADMISSION")
+        adm_df = adm_df.reset_index().sort_values("TIMESTAMP_START")
 
         # Merge on PID with outer join to get all combinations
         merged_df = pd.merge_asof(
             concept_df, 
             adm_df, 
             left_on="TIMESTAMP",
-            right_on="ADMISSION",
+            right_on="TIMESTAMP_START",
             by="PID", 
             direction="nearest"
         ).drop(columns=["index_x", "index_y"])
         
         # Filter to keep only the rows where TIMESTAMP is within the admission time range
-        in_admission = (merged_df['TIMESTAMP']<=merged_df['DISCHARGE']) & (merged_df['TIMESTAMP']>=merged_df['ADMISSION'])
-        return merged_df[in_admission], merged_df[~in_admission]
+        in_admission = (
+            (merged_df['TIMESTAMP'] <= merged_df['TIMESTAMP_END'] + pd.Timedelta(days=1)) &
+            (merged_df['TIMESTAMP'] >= merged_df['TIMESTAMP_START'] - pd.Timedelta(days=1)) &
+            (merged_df['TYPE'] == 'IN')
+        )
+        out_admission = (
+            (merged_df['TIMESTAMP'] <= merged_df['TIMESTAMP_END'] + pd.Timedelta(days=3)) &
+            (merged_df['TIMESTAMP'] >= merged_df['TIMESTAMP_START'] - pd.Timedelta(days=3)) &
+            (merged_df['TYPE'] == 'OUT')
+        )
+        existing_admissions = in_admission | out_admission
+        return merged_df[in_admission  ], merged_df[~in_admission]
 
     @staticmethod
-    def assign_admission_id(df, out_adm_file):
+    def assign_admission_id(df, adm_file):
         """
-        Assign unique admission IDs to records outside of hospital admissions based on PID and time difference. 
+        Assign unique admission IDs to records outside of hospital admissions based on PID and time difference.
         Here all records 24 hours of each other are considered to be in the same admission.
         """
-        df_sorted = df.sort_values(['TIMESTAMP'])
+        df_sorted = df.sort_values(['PID', 'TIMESTAMP'])
 
-        if out_adm_file is None:
-            out_adm_file = pd.DataFrame(columns=['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END'])
+        # Calculate time differences within each PID group
+        df_sorted['TIMESTAMP_DIFF'] = df_sorted.groupby('PID')['TIMESTAMP'].diff().fillna(pd.Timedelta(seconds=0))
+        
+        # Identify new admissions based on the time difference
+        df_sorted['NEW_ADMISSION'] = (df_sorted['TIMESTAMP_DIFF'] > pd.Timedelta(days=2)).cumsum()
 
-        for index, row in df_sorted.iterrows():
-            pid = row['PID']
-            timestamp = pd.to_datetime(row['TIMESTAMP'])
-            
-            # Find matching admission periods within ±24 hours
-            matching_adm = out_adm_file[
-                (out_adm_file['PID'] == pid) &
-                (out_adm_file['TIMESTAMP_START'] - pd.Timedelta(hours=24) <= timestamp) &
-                (out_adm_file['TIMESTAMP_END'] + pd.Timedelta(hours=24) >= timestamp)
-            ]
-            
-            if not matching_adm.empty:
-                # Assign the corresponding ADMISSION_ID
-                df_sorted.at[index, 'ADMISSION_ID'] = matching_adm.iloc[0]['ADMISSION_ID']
-                
-                # Update the TIMESTAMP_START and TIMESTAMP_END in out_adm_file
-                if timestamp < matching_adm.iloc[0]['TIMESTAMP_START']:
-                    out_adm_file.loc[matching_adm.index, 'TIMESTAMP_START'] = timestamp
-                if timestamp > matching_adm.iloc[0]['TIMESTAMP_END']:
-                    out_adm_file.loc[matching_adm.index, 'TIMESTAMP_END'] = timestamp
-            else:
-                # Create a new ADMISSION_ID
-                new_admission_id = hashlib.sha256((str(pid) + '_' + str(timestamp)).encode()).hexdigest()
-                df_sorted.at[index, 'ADMISSION_ID'] = new_admission_id
-                
-                # Add a new row to out_adm_file
-                new_row = {
-                    'PID': pid,
-                    'ADMISSION_ID': new_admission_id,
-                    'TIMESTAMP_START': timestamp,
-                    'TIMESTAMP_END': timestamp + pd.Timedelta(days=7)
-                }
-                out_adm_file = out_adm_file.append(new_row, ignore_index=True)
+        # Generate unique admission IDs
+        df_sorted['ADMISSION_ID'] = df_sorted.apply(
+            lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
+        )
 
-        return df_sorted, out_adm_file
+        # Update adm_file with new admissions
+        new_admissions = df_sorted.groupby(['PID', 'NEW_ADMISSION']).agg(
+            TIMESTAMP_START=('TIMESTAMP', 'min'),
+            TIMESTAMP_END=('TIMESTAMP', 'max'),
+        ).reset_index()
+        new_admissions['TYPE'] = 'OUT'
 
-    @staticmethod
-    def save_adm(in_adm_file, out_adm_file):
+        new_admissions['ADMISSION_ID'] = new_admissions.apply(
+            lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
+        )
+
+        adm_file = pd.concat([adm_file, new_admissions[['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]], ignore_index=True)
+
+        return df_sorted.drop(columns=['TIMESTAMP_DIFF', 'NEW_ADMISSION']), adm_file
+    
+    def save_adm(self, adm_file):
         """
         Save the admission files to the output directory.
         """
-        in_adm_file = in_adm_file.rename(columns={'ADMISSION': 'TIMESTAMP_START', 'DISCHARGE': 'TIMESTAMP_END'})
-        in_adm_file['TYPE'] = 'IN'
-        out_adm_file['TYPE'] = 'OUT'
-        merged_adm_file = pd.concat([in_adm_file, out_adm_file])
-        self.save(merged_adm_file, self.cfg.admissions, 'admissions')
-        return in_adm_file, out_adm_file
-
-    @staticmethod
-    def combine_dataframes(df1, df2):
-        """
-        Combine two dataframes, removing unnecessary columns from the one within admissions.
-        """
-        df2 = df2.drop(columns=['TIMESTAMP_START', 'TIMESTAMP_END'])
-        return pd.concat([df1, df2])
+        self.save(adm_file, self.cfg.admissions, 'admissions')
 
     def get_admissions(self):
         """Load admission dataframe and create an ADMISSION_ID column. Then combined all admission within 24 hours."""
@@ -276,12 +259,12 @@ class AzurePreprocessor():
         events = []
         for admission in merged_admissions:
             events.append({'PID': admission['CPR_hash'], 
-                           'ADMISSION': admission['Flyt_ind'], 
-                           'DISCHARGE': admission['Flyt_ud']})
+                           'TIMESTAMP_START': admission['Flyt_ind'], 
+                           'TIMESTAMP_END': admission['Flyt_ud'],
+                           'TYPE': 'IN'})
         final_df = pd.DataFrame(events)
         final_df['ADMISSION_ID'] = self.assign_hash(final_df)
-
-        return final_df
+        self.adm_file = final_df
     
     @staticmethod
     def assign_hash(df):

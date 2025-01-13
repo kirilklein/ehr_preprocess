@@ -11,7 +11,6 @@ import pathlib
 run = Run
 run.name(f"Diagnosis_Medication_Labtest_Procedure")
 ds_sp = datastore("researcher_data")
-dump_path = join("data-backup", "SP-dumps", "2024-06-24")
 
 config_name = "azure"
 def my_app(config_name):

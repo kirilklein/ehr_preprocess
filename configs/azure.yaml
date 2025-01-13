@@ -1,4 +1,4 @@
-test: true
+test: false
 env: azure
 run_name: ehr_preprocess
 paths:
@@ -19,7 +19,7 @@ concepts:
     names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
     dtypes: {CONCEPT: category}
     chunksize: 10000000
-    file_type: csv
+    file_type: parquet
     fill_diags: false
 
   procedure:
@@ -27,15 +27,14 @@ concepts:
     keep_cols: [CPR_hash, ProcedureCode, ServiceDatetime]
     dtypes: {CONCEPT: category}
     chunksize: 10000000
-    file_type: csv
+    file_type: parquet
 
   medication:
     filename: CPMI_Medicin.parquet
     keep_cols: [CPR_hash, ATC, Administrationstidspunkt]
     dtypes: {CONCEPT: category, 'PID': category}  
     chunksize: 10000000
-    start_chunk: 0
-    file_type: csv
+    file_type: parquet
 
   labtest:
     filename: [CPMI_Labsvar.parquet]
@@ -43,7 +42,7 @@ concepts:
     names: [PID, CONCEPT, TIMESTAMP, RESULT]
     dtypes: {CONCEPT: category}
     chunksize: 10000000
-    file_type: csv
+    file_type: parquet
     
 admissions:
     filename: CPMI_ADTHaendelser.parquet
