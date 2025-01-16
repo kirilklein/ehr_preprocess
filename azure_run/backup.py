@@ -10,12 +10,18 @@ def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_c
     from . import log, datastore, dataset as load_dataset
 
     # Validate
-    if type(name)!=str:        raise Exception(f"Invalid parameter 'name', expected type str.")
-    if type(remote_path)!=str: raise Exception(f"Invalid parameter 'remote_name', expected type str.")
+    if not isinstance(name, str):
+        raise Exception(f"Invalid parameter 'name', expected type str.")
+    if not isinstance(remote_path, str):
+        raise Exception(f"Invalid parameter 'remote_name', expected type str.")
+        
     # Clean path
-    if remote_path[0] == "/": remote_path = remote_path[1:]
-    elif remote_path[:2] == "./": remote_path = remote_path[2:]
-    if remote_path[-1] == "/": remote_path = remote_path[:-1]
+    if remote_path[0] == "/": 
+        remote_path = remote_path[1:]
+    elif remote_path[:2] == "./": 
+        remote_path = remote_path[2:]
+    if remote_path[-1] == "/": 
+        remote_path = remote_path[:-1]
 
     # Get datastore and full remote path
     dast = datastore(name=_BACKUP_DATASTORE)
@@ -27,7 +33,7 @@ def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_c
     # Get dataset
     log().info(f"Making backup of dataset {name}.")
     ds = load_dataset(name)
-    log().debug(f"Fetching dataset...")
+    log().debug("Fetching dataset...")
     df = ds.to_pandas_dataframe()
     log().info(f"Loaded {name}:{ds.version}, got {len(df)} rows with {len(df.columns)} columns!")
 
@@ -41,13 +47,13 @@ def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_c
             # Should give an exception
             if not e.error_code == "ScriptExecution.StreamAccess.NotFound":
                 # Unexpected exception?
-                raise Exception(f"Looking for dataset @ {(_BACKUP_DATASTORE,full_remote_path)} caused an unexpected exception: {e}.")
+                raise Exception(f"Looking for dataset @ {(_BACKUP_DATASTORE,full_remote_path)} caused an unexpected exception.") from e
         
         if found: raise Exception(f"Cannot make backup of {name}, backup {(_BACKUP_DATASTORE,full_remote_path)} already exists. Set ovewrite_ok=True to ignore!")
 
     try:
         # Store locally
-        log().info(f"Storing files locally!")
+        log().info("Storing files locally!")
         # Create temporary directory
         os.makedirs(local_dir)
         # Store ds as local file
@@ -71,14 +77,11 @@ def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_c
     finally:
         # Clean-up
         log().debug("Cleaning up temporary data...")
-        try: os.remove(local_dir+"meta.json")
-        except OSError: pass
-        try: os.remove(local_dir+"data.parquet")
-        except OSError: pass
-        try: os.rmdir(local_dir)
-        except OSError: pass
-        try: os.rmdir(tmp_dir)
-        except OSError: pass
+        with contextlib.suppress(OSError):
+            os.remove(local_dir+"meta.json")
+            os.remove(local_dir+"data.parquet")
+            os.rmdir(local_dir)
+            os.rmdir(tmp_dir)
     
     # Post validation
     if post_validate_compare or post_validate_func is not None:
@@ -97,10 +100,6 @@ def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_c
                 log().error("Post-validation  (custom) failed!")
                 raise Exception("Post-validation  (custom) failed!")
             log().info("Validation (custom) passed!")
-
-def file(path, remote_location, overwrite_ok=False):
-    from . import log
-    raise Exception("Not implemented!")
 
 
 

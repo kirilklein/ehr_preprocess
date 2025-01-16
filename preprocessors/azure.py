@@ -3,7 +3,7 @@ import os
 from azureml.core import Dataset
 from tqdm import tqdm
 import hashlib
-from azureml.core import Workspace, Dataset, Datastore
+from azureml.core import Dataset
 from os.path import join
 from datetime import timedelta
 
@@ -17,7 +17,7 @@ class AzurePreprocessor():
         self.dump_path = dump_path if dump_path is not None else None
         self.test = cfg.test
         self.logger.info(f"test {self.test}")
-        self.removed_concepts = {k:0 for k in self.cfg.concepts.keys()} # count concepts that are removed
+        self.removed_concepts = {k:0 for k in self.cfg.concepts} # count concepts that are removed
         self.initial_patients = set()
         self.formatted_patients = set()
         self.adm_file = None
@@ -59,7 +59,7 @@ class AzurePreprocessor():
             self.logger.info(f"INFO: Preprocess {concept_type}")
             first = True
 
-            if type(concept_config.filename) == list:
+            if isinstance(concept_config.filename, list):
                 for file_name in concept_config.filename:
                     concept_config.filename = file_name
                     self.iterate_through_file(concept_type, concept_config, first=first)
@@ -189,7 +189,7 @@ class AzurePreprocessor():
             (merged_df['TYPE'] == 'OUT')
         )
         existing_admissions = in_admission | out_admission
-        return merged_df[in_admission  ], merged_df[~in_admission]
+        return merged_df[existing_admissions], merged_df[~existing_admissions]
 
     @staticmethod
     def assign_admission_id(df, adm_file):
@@ -240,7 +240,7 @@ class AzurePreprocessor():
         adm.sort_values(by=['CPR_hash', 'Flyt_ind'], inplace=True)
         merged_admissions = []
         current_row = None
-        for index, row in adm.iterrows():
+        for _, row in adm.iterrows():
             if current_row is None:
                 current_row = row
                 continue
@@ -297,18 +297,12 @@ class AzurePreprocessor():
     def load_chunks(self, cfg: dict, pandas=True):
         """Generate chunks of the dataset and convert to pandas/dask df"""
         ds = self.get_dataset(cfg)
-        if 'start_chunk' in cfg:
-            i = cfg.start_chunk
-        else:
-            i = 0
+        i = cfg.start_chunk if 'start_chunk' in cfg else 0
         while True:
             self.logger.info(f"chunk {i}")
             chunk = ds.skip(i * cfg.chunksize)
             chunk = chunk.take(cfg.chunksize)
-            if pandas:
-                df = chunk.to_pandas_dataframe()
-            else:
-                df = chunk.to_dask_dataframe()
+            df = chunk.to_pandas_dataframe() if pandas else chunk.to_dask_dataframe()
             if len(df.index) == 0:
                 self.logger.info("empty")
                 break
@@ -328,10 +322,7 @@ class AzurePreprocessor():
     def save(self, df, cfg, filename, mode='w'):
         self.logger.info(f"Save {filename}")
         out = self.cfg.paths.output_dir
-        if 'file_type' in cfg:
-            file_type = cfg.file_type
-        else:
-            file_type = self.cfg.file_type
+        file_type = cfg.file_type if 'file_type' in cfg else self.cfg.file_type
         if not os.path.exists(out):
             os.makedirs(out)
         if file_type == 'parquet':

@@ -3,7 +3,7 @@ env: azure
 run_name: ehr_preprocess
 paths:
   output_dir: outputs/new_ehr_preprocess
-  file_type: parquet 
+  file_type: parquet
   dump_path: 'data-backup/SP-dumps/2024-09-10'
 
 # filtering:
@@ -45,12 +45,12 @@ concepts:
     file_type: parquet
     
 admissions:
-    filename: CPMI_ADTHaendelser.parquet
-    keep_cols: [CPR_hash, Flyt_ind, Flyt_ud, Afsnit, ADT_haendelse]
-    file_type: parquet
+  filename: CPMI_ADTHaendelser.parquet
+  keep_cols: [CPR_hash, Flyt_ind, Flyt_ud, Afsnit, ADT_haendelse]
+  file_type: parquet
 
 patients_info:
-    filename: CPMI_PatientInfo.parquet
-    names: [PID, BIRTHDATE, DEATHDATE, GENDER]
-    usecols: [0, 1, 2, 3]
-    file_type: parquet
+  filename: CPMI_PatientInfo.parquet
+  names: [PID, BIRTHDATE, DEATHDATE, GENDER]
+  usecols: [0, 1, 2, 3]
+  file_type: parquet

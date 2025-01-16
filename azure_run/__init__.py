@@ -19,7 +19,7 @@ _DATASTORES = {
     "workspaceartifactstore"
 }
 _WS_CONFIG = {
-    "subscription_id": "f8c5aac3-29fc-4387-858a-1f61722fb57a",
+    "subscription_id": "",
     "resource_group": "forskerpl-n0ybkr-rg",
     "workspace_name": "forskerpl-n0ybkr-mlw"
 }
@@ -132,37 +132,6 @@ def file_dataset_save(local_path: str, tags: dict = None, description: str = Non
     
     # Register
     return ds.register(workspace=workspace(), name=os.path.split(remote_path)[1], tags=tags, description=description, create_new_version=True)
-
-# def file_dataset_save(local_path: str, name: str, tags: dict = None, description: str = None, datastore_name = "workspaceblobstore", remote_path = "aiomic/datasets/"):
-#     """Save given file dataset (given as txt files in a local directory).
-
-#     Parameters
-#     ----------
-#     local_path : str
-#         Path to local directory containing files.
-#     name : str
-#         The name of the dataset to save.
-#     tags : dict(str: any)
-#         Dictionary of tags (values will be converted to str).
-#     description : str
-#         Description for the dataset.
-
-#     Returns
-#     -------
-#     Dataset
-#         The AzureML dataset object created for the dataset.
-#     """
-#     global _DS_LIST_CACHE
-#     _DS_LIST_CACHE = None # Invalidate cache
-
-#     dtst = datastore(name=datastore_name)
-
-#     remote_path = remote_path if remote_path[-1] == "/" else remote_path + "/"
-
-#     ds = Dataset.File.upload_directory(local_path, (dtst, remote_path+name))
-    
-#     # Register
-#     return ds.register(workspace=workspace(), name=name, tags=tags, description=description, create_new_version=True)
 
 def dataset_list(tags=None):
     """List datasets registered with the default workspace.
