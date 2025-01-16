@@ -1,10 +1,15 @@
 test: false
+env: azure
 run_name: ehr_preprocess
+data_store: "researcher_data"
 paths:
-  output_dir: outputs
-  # output_dir: ../../data/formatted_data/medication_diagnosis
+  output_dir: outputs/ehr_preprocess
   file_type: parquet
-  
+  dump_path: 'data-backup/SP-dumps/2024-09-10'
+
+# filtering:
+#   filter_date: '2022-01-01'
+
 preprocessor:
   _target_: preprocessors.azure.AzurePreprocessor
 
@@ -15,23 +20,38 @@ concepts:
     names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
     dtypes: {CONCEPT: category}
     chunksize: 10000000
-    file_type: csv
+    file_type: parquet
+    fill_diags: false
+
+  procedure:
+    filename: CPMI_Procedurer.parquet
+    keep_cols: [CPR_hash, ProcedureCode, ServiceDatetime]
+    dtypes: {CONCEPT: category}
+    chunksize: 10000000
+    file_type: parquet
 
   medication:
     filename: CPMI_Medicin.parquet
     keep_cols: [CPR_hash, ATC, Administrationstidspunkt]
     dtypes: {CONCEPT: category, 'PID': category}  
     chunksize: 10000000
-    start_chunk: 0
-    file_type: csv
+    file_type: parquet
+
+  labtest:
+    filename: [CPMI_Labsvar.parquet]
+    keep_cols: [CPR_hash, BestOrd, Bestillingsdato, Resultatværdi]
+    names: [PID, CONCEPT, TIMESTAMP, RESULT]
+    dtypes: {CONCEPT: category}
+    chunksize: 10000000
+    file_type: parquet
     
 admissions:
-    filename: CPMI_ADTHaendelser.parquet
-    names: [PID, TIMESTAMP_START, TIMESTAMP_END]
-    usecols: [0, 1, 2]
+  filename: CPMI_ADTHaendelser.parquet
+  keep_cols: [CPR_hash, Flyt_ind, Flyt_ud, Afsnit, ADT_haendelse]
+  file_type: parquet
 
 patients_info:
-    filename: CPMI_PatientInfo.parquet
-    names: [PID, BIRTHDATE, DEATHDATE, GENDER]
-    usecols: [0, 1, 2, 3]
-    file_type: parquet
+  filename: CPMI_PatientInfo.parquet
+  names: [PID, BIRTHDATE, DEATHDATE, GENDER]
+  usecols: [0, 1, 2, 3]
+  file_type: parquet

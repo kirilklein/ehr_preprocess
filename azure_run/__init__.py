@@ -4,8 +4,9 @@ Core functionality includes e.g. loading and saving of datasets, manipulating ru
 making backups to a separate datastore, and more...
 """
 
-from azureml.core import Dataset, Datastore, Workspace
+from azureml.core import Dataset, Datastore, Workspace, Model
 import pandas as pd
+import os 
 
 def log():
     return logger.log(name=__name__)
@@ -19,8 +20,8 @@ _DATASTORES = {
 }
 _WS_CONFIG = {
     "subscription_id": "",
-    "resource_group": "",
-    "workspace_name": ""
+    "resource_group": "forskerpl-n0ybkr-rg",
+    "workspace_name": "forskerpl-n0ybkr-mlw"
 }
 _WS = None
 
@@ -102,7 +103,8 @@ def dataset_save(df: pd.DataFrame, name: str, tags: dict = None, description: st
     _DS_LIST_CACHE = None # Invalidate cache
     return Dataset.Tabular.register_pandas_dataframe(df, datastore(), name, show_progress=False, tags=tags, description=description)
 
-def file_dataset_save(local_path: str, name: str, tags: dict = None, description: str = None, datastore_name = "workspaceblobstore", remote_path = "aiomic/datasets/"):
+
+def file_dataset_save(local_path: str, tags: dict = None, description: str = None, datastore_name = "workspaceblobstore", remote_path = "PHAIR", overwrite=False):
     """Save given file dataset (given as txt files in a local directory).
 
     Parameters
@@ -126,12 +128,10 @@ def file_dataset_save(local_path: str, name: str, tags: dict = None, description
 
     dtst = datastore(name=datastore_name)
 
-    remote_path = remote_path if remote_path[-1] == "/" else remote_path + "/"
-
-    ds = Dataset.File.upload_directory(local_path, (dtst, remote_path+name))
+    ds = Dataset.File.upload_directory(local_path, (dtst, remote_path), overwrite=overwrite)
     
     # Register
-    return ds.register(workspace=workspace(), name=name, tags=tags, description=description, create_new_version=True)
+    return ds.register(workspace=workspace(), name=os.path.split(remote_path)[1], tags=tags, description=description, create_new_version=True)
 
 def dataset_list(tags=None):
     """List datasets registered with the default workspace.
