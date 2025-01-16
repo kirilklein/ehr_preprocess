@@ -1,8 +1,9 @@
 test: false
 env: azure
 run_name: ehr_preprocess
+data_store: "researcher_data"
 paths:
-  output_dir: outputs/new_ehr_preprocess
+  output_dir: outputs/ehr_preprocess
   file_type: parquet
   dump_path: 'data-backup/SP-dumps/2024-09-10'
 

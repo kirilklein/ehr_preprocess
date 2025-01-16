@@ -1,6 +1,7 @@
 import os
 import json
 from azureml.core import Dataset
+import contextlib
 
 _BACKUP_DATASTORE = "researcher_data"
 _BACKUP_ROOT_DIR  = "data-backup"
@@ -11,9 +12,9 @@ def dataset(name, remote_path, version=None, overwrite_ok=False, post_validate_c
 
     # Validate
     if not isinstance(name, str):
-        raise Exception(f"Invalid parameter 'name', expected type str.")
+        raise Exception("Invalid parameter 'name', expected type str.")
     if not isinstance(remote_path, str):
-        raise Exception(f"Invalid parameter 'remote_name', expected type str.")
+        raise Exception("Invalid parameter 'remote_name', expected type str.")
         
     # Clean path
     if remote_path[0] == "/": 

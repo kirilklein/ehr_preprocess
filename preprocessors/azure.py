@@ -3,7 +3,6 @@ import os
 from azureml.core import Dataset
 from tqdm import tqdm
 import hashlib
-from azureml.core import Dataset
 from os.path import join
 from datetime import timedelta
 
@@ -323,16 +322,16 @@ class AzurePreprocessor():
         self.logger.info(f"Save {filename}")
         out = self.cfg.paths.output_dir
         file_type = cfg.file_type if 'file_type' in cfg else self.cfg.file_type
-        if not os.path.exists(out):
-            os.makedirs(out)
-        if file_type == 'parquet':
-            path = os.path.join(out, f'{filename}.parquet')
-            df.to_parquet(path)
-        elif file_type == 'csv':
-            path = os.path.join(out, f'{filename}.csv')
-            if mode == 'w':
-                df.to_csv(path, index=True, mode=mode)
-            else: 
-                df.to_csv(path, index=True, mode=mode, header=False)
-        else:
-            raise ValueError(f"Filetype {file_type} not implemented yet")
+        try:
+            os.makedirs(out, exist_ok=True)
+            if file_type == 'parquet':
+                path = os.path.join(out, f'{filename}.parquet')
+                df.to_parquet(path)
+            elif file_type == 'csv':
+                path = os.path.join(out, f'{filename}.csv')
+                df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))
+            else:
+                raise ValueError(f"Filetype {file_type} not implemented yet")
+        except (OSError, IOError) as e:
+            self.logger.error(f"Failed to save {filename}: {str(e)}")
+            raise
