@@ -26,20 +26,20 @@ SP_concepts:
       file_type: parquet
       fill_diags: false
 
-# register_concepts:
-#   data_store: "researcher_data"
-#   dump_path: 'FSEID'
-#   mapping_file: ''maskerede_data/mapping.csv'
-#   kontakt_file: 'FSEID/kontakter.parquet'
-#   forloeb_file: 'FSEID/forloeb.parquet'
-#   types:
-#     register_diagnosis:
-#       datastore: "researcher_data"
-#       dump_path: 'FSEID'
-#       filename: diagnoser.asc
-#       keep_cols: [dw_ek_kontakt, diagnosekode]
-#       chunksize: 10000000
-#       file_type: parquet
+register_concepts:
+  data_store: "researcher_data"
+  dump_path: 'FSEID'
+  mapping_file: ''maskerede_data/mapping.csv'
+  kontakt_file: 'FSEID/kontakter.parquet'
+  forloeb_file: 'FSEID/forloeb.parquet'
+  types:
+    register_diagnosis:
+      datastore: "researcher_data"
+      dump_path: 'FSEID'
+      filename: diagnoser.asc
+      keep_cols: [dw_ek_kontakt, diagnosekode]
+      chunksize: 10000000
+      file_type: parquet
 
 admissions:
   data_store: "researcher_data"

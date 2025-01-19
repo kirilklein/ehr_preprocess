@@ -46,22 +46,39 @@ class AzurePreprocessor():
                     self.iterate_through_file(concept_type, concept_config)
 
         if 'register_concepts' in self.cfg:
+            forl, kont = self.load_register_concepts()
+            self.logger.info("Load register concepts")
+            for concept_type, concept_config in tqdm(self.cfg.SP_concepts.types.items(), desc="Concepts"):
+                if concept_type not in ['register_diagnosis']:
+                    raise ValueError(f'{concept_type} not implemented yet')
+                self.logger.info(f"INFO: Preprocess {concept_type}")
+                first = True
+                concept_config.data_path = join(self.cfg.register_concepts.dump_path, concept_config.filename)
+                concept_config.data_store = self.cfg.SP_concepts.data_store
+                if isinstance(concept_config.filename, list):
+                    for file_name in concept_config.filename:
+                        concept_config.filename = file_name
+                        self.iterate_through_file(concept_type, concept_config, first=first, kwargs={'forl': forl, 'kont': kont})
+                        first=False
+                else:
+                    self.iterate_through_file(concept_type, concept_config, kwargs={'forl': forl, 'kont': kont})
+
             raise NotImplementedError("register_concepts not implemented yet")
         self.save(self.adm_file, self.cfg.admissions, 'admissions')
 
-    def iterate_through_file(self, concept_type, concept_config, first=True):
+    def iterate_through_file(self, concept_type, concept_config, first=True, kwargs={}):
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
-            chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
+            chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config, kwargs)
             if first:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
                 first = False
             else:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='a')
 
-    def concepts_process_pipeline(self, concepts, concept_type, cfg):
+    def concepts_process_pipeline(self, concepts, concept_type, cfg, kwargs={}):
         """Process concepts"""
         formatter = getattr(formatters, f"format_{concept_type}")
-        concepts = formatter(concepts, cfg)
+        concepts = formatter(concepts, cfg, **kwargs)
         self.initial_patients = self.initial_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.initial_patients)} before cleaning")
         self.logger.info(f"{len(concepts)} concepts")
@@ -219,31 +236,43 @@ class AzurePreprocessor():
         final_df['ADMISSION_ID'] = final_df.apply(lambda x: hashlib.sha256(str(x).encode()).hexdigest(), axis=1)
         self.adm_file = final_df
 
+    def get_register_concepts(self):
+        """Load register concepts"""
+        self.logger.info("Load register concepts")
+        config = self.cfg.register_concepts
+        mapping = self.load_pandas({'data_path': join(config.dump_path, config.mapping_file), 'data_store': config.data_store})
+        forl = self.load_pandas({'data_path': join(config.dump_path, config.forloeb_file), 'data_store': config.data_store})
+        kont = self.load_pandas({'data_path': join(config.dump_path, config.kontakt_file), 'data_store': config.data_store})
+
+        forl = forl.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
+        forl = forl.dropna(subset=['CPR_hash'])
+        forl = forl.keep_columns(columns=[
+                                    'dw_ek_forloeb', 'dw_ek_helbredsforloeb', 
+                                    'dato_start', 'tidspunkt_start', 
+                                    'data_slut', 'tidspunkt_slut', 
+                                    'PID', 'CPR_hash'])
+        forl['TIMESTAMP_START'] = pd.to_datetime(forl['dato_start'] + ' ' + forl['tidspunkt_start'])
+        forl['TIMESTAMP_END'] = pd.to_datetime(forl['dato_slut'] + ' ' + forl['tidspunkt_slut'])
+        forl.drop(columns=['dato_start', 'dato_slut', 'tidspunkt_start', 'tidspunkt_slut'])
+
+        kont = kont.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
+        kont = kont.dropna(subset=['CPR_hash'])
+        kont = kont.loc[:, ['dw_ek_kontakt', 'dw_ek_forloeb', 
+                    'dato_start', 'tidspunkt_start', 
+                    'dato_slut', 'tidspunkt_slut', 
+                    'PID', 'CPR_hash', 'aktionsdiagnose']]
+        kont['TIMESTAMP_START'] = pd.to_datetime(kont['dato_start'] + ' ' + kont['tidspunkt_start'])
+        kont['TIMESTAMP_END'] = pd.to_datetime(kont['dato_slut'] + ' ' + kont['tidspunkt_slut'])
+        kont.drop(columns=['dato_start', 'dato_slut', 'tidspunkt_start', 'tidspunkt_slut'])
+
+        return forl, kont
+
     def select_columns(self, df, cfg):
         """Select and Rename columns"""
         columns = df.columns.tolist()
         selected_columns = [columns[i] for i in cfg.usecols]
         df = df[selected_columns]
         df = df.rename(columns={old: new for old, new in zip(selected_columns, cfg.names)})
-        return df
-            
-    def get_researcher_data(path, 
-                            n_take: int | None = None,
-                            separator: str = ",",
-                            encoding: str = "utf8"):
-        base_path = f'https://forskerpln0ybkrdls01.blob.core.windows.net/researcher-data/'
-        if ".parquet" in path:
-            ds = Dataset.Tabular.from_parquet_files(path=base_path + path)
-        elif ".csv" in path or ".asc" in path:
-            ds = Dataset.Tabular.from_delimited_files(path=base_path + path, separator=separator, encoding=encoding)
-        else:
-            print("invalid filetype")
-            return None
-        
-        if n_take:
-            df = ds.take(n_take).to_pandas_dataframe()
-        else:
-            df = ds.to_pandas_dataframe()
         return df
 
     def load_pandas(self, cfg: dict):

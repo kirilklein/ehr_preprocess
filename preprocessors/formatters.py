@@ -27,3 +27,14 @@ def format_medication(med, cfg):
     med = med[['PID','CONCEPT','TIMESTAMP']]
     med['CONCEPT'] = med['CONCEPT'].map(lambda x: 'M'+x)
     return med
+
+def format_register_diagnosis(diag, cfg, forl, kont):
+    merged_df = pd.merge(
+        diag, 
+        kont, 
+        on="dw_ek_kontakt", 
+        how="inner"
+    ).drop(['dw_ek_kontakt', 'PID', 'TIMESTAMP_END'], axis=1)
+    merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'Diagnosekode':'CONCEPT', 'TIMESTAMP_START':'TIMESTAMP', })
+    return merged_df
+
