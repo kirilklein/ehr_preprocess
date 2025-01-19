@@ -6,7 +6,6 @@ from os.path import join
 from datetime import timedelta
 from azure_run import datastore
 from . import formatters
-from .utils import assign_hash
 import hashlib 
 
 class AzurePreprocessor():
