@@ -18,6 +18,31 @@ def load_config(config_file):
         cfg = yaml.safe_load(ymlfile)
     cfg = Config(cfg)
     return cfg
+
+def load_pandas(self, cfg: dict):
+    ds = self.get_dataset(cfg)
+    df = ds.to_pandas_dataframe()
+    return df
+
+def load_dask(self, cfg: dict):
+    ds = self.get_dataset(cfg)
+    df = ds.to_dask_dataframe()
+    return df
+
+def load_chunks(self, cfg: dict, pandas=True):
+    """Generate chunks of the dataset and convert to pandas/dask df"""
+    ds = self.get_dataset(cfg)
+    i = cfg.start_chunk if 'start_chunk' in cfg else 0
+    while True:
+        self.logger.info(f"chunk {i}")
+        chunk = ds.skip(i * cfg.chunksize)
+        chunk = chunk.take(cfg.chunksize)
+        df = chunk.to_pandas_dataframe() if pandas else chunk.to_dask_dataframe()
+        if len(df.index) == 0:
+            self.logger.info("empty")
+            break
+        i += 1
+        yield df
     
 class Config(dict):
     def __init__(self, dictionary=None):
@@ -50,13 +75,3 @@ class Config(dict):
             super(Config, self).__delattr__(name)
 
 
-def get_datastore():
-    """Initializes workspase and gets datastor and dump_path"""
-    subscription_id = 'f8c5aac3-29fc-4387-858a-1f61722fb57a'
-    resource_group = 'forskerpl-n0ybkr-rg'
-    workspace_name = 'forskerpl-n0ybkr-mlw'
-    
-    workspace = Workspace(subscription_id, resource_group, workspace_name)
-    datastore = Datastore.get(workspace, "researcher_data")
-    dump_path = join("data-backup", "SP-dumps", "2022-10-27")
-    return datastore, dump_path

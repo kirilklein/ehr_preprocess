@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import hashlib
 
 import pandas as pd
 
@@ -84,3 +85,13 @@ def timing_function(function):
         print(f'{function.__qualname__!r}: {(t2 - t1)/60:.1f} mins')
         return result
     return wrapper
+
+def assign_hash(df):
+    return df.apply(lambda x: hashlib.sha256(str(x).encode()).hexdigest(), axis=1)
+
+def change_dtype(self, df, cfg):
+    """Change column dtype"""
+    if 'dtypes' in cfg:
+        for col, dtype in cfg.dtypes.items():
+            df[col] = df[col].astype(dtype)
+    return df

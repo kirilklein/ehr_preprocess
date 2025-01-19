@@ -1,4 +1,4 @@
-test: false
+test: true
 env: azure
 run_name: ehr_preprocess
 data_store: "researcher_data"
@@ -21,7 +21,6 @@ SP_concepts:
     diagnosis:
       filename: CPMI_Diagnoser.parquet
       keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
-      names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
       dtypes: {CONCEPT: category}
       chunksize: 10000000
       file_type: parquet
@@ -43,14 +42,14 @@ SP_concepts:
 #       file_type: parquet
 
 admissions:
-  datastore: "researcher_data"
+  data_store: "researcher_data"
   dump_path: 'data-backup/SP-dumps/2024-09-10'
   filename: CPMI_ADTHaendelser.parquet
   keep_cols: [CPR_hash, Flyt_ind, Flyt_ud, Afsnit, ADT_haendelse]
   file_type: parquet
 
 patients_info:
-  datastore: "researcher_data"
+  data_store: "researcher_data"
   dump_path: 'data-backup/SP-dumps/2024-09-10'
   filename: CPMI_PatientInfo.parquet
   names: [PID, BIRTHDATE, DEATHDATE, GENDER]
