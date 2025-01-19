@@ -5,9 +5,9 @@ from tqdm import tqdm
 from os.path import join
 from datetime import timedelta
 from azure_run import datastore
-import formatters
-from utils import assign_hash
-from load import load_pandas, load_chunks
+from . import formatters
+from .utils import assign_hash
+import hashlib 
 
 class AzurePreprocessor():
     # load data in dask
@@ -48,7 +48,7 @@ class AzurePreprocessor():
 
         if 'register_concepts' in self.cfg:
             raise NotImplementedError("register_concepts not implemented yet")
-        self.save(adm_file, self.cfg.admissions, 'admissions')
+        self.save(self.adm_file, self.cfg.admissions, 'admissions')
 
     def iterate_through_file(self, concept_type, concept_config, first=True):
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
@@ -162,7 +162,8 @@ class AzurePreprocessor():
 
         # Generate unique admission IDs
         df_sorted['ADMISSION_ID'] = df_sorted.apply(
-            lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
+            lambda row: 
+            hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
         )
 
         new_admissions = df_sorted.groupby(['PID', 'NEW_ADMISSION']).agg(
@@ -204,7 +205,10 @@ class AzurePreprocessor():
                 # No overlap within 24 hours, add the current admission to merged_admissions and start a new current admission
                 merged_admissions.append(current_row.to_dict())
                 current_row = row
-        merged_admissions.append(current_row.to_dict())
+
+        # Add the last current_row to merged_admissions
+        if current_row is not None:
+            merged_admissions.append(current_row.to_dict())
 
         events = []
         for admission in merged_admissions:
@@ -213,7 +217,7 @@ class AzurePreprocessor():
                            'TIMESTAMP_END': admission['Flyt_ud'],
                            'TYPE': 'IN'})
         final_df = pd.DataFrame(events)
-        final_df['ADMISSION_ID'] = self.assign_hash(final_df)
+        final_df['ADMISSION_ID'] = final_df.apply(lambda x: hashlib.sha256(str(x).encode()).hexdigest(), axis=1)
         self.adm_file = final_df
 
     def select_columns(self, df, cfg):
