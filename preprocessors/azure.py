@@ -5,15 +5,14 @@ from tqdm import tqdm
 import hashlib
 from os.path import join
 from datetime import timedelta
+from azure_run import datastore
 
 
 class AzurePreprocessor():
     # load data in dask
-    def __init__(self, cfg, logger, datastore, dump_path) -> None:
+    def __init__(self, cfg, logger) -> None:
         self.cfg = cfg
         self.logger = logger
-        self.datastore =  datastore
-        self.dump_path = dump_path if dump_path is not None else None
         self.test = cfg.test
         self.logger.info(f"test {self.test}")
         self.removed_concepts = {k:0 for k in self.cfg.concepts} # count concepts that are removed
@@ -41,7 +40,7 @@ class AzurePreprocessor():
 
     def iterate_through_file(self, concept_type, concept_config, first=True):
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
-            # process each chunk here.
+            process each chunk here.
             chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
             if first:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
@@ -52,20 +51,30 @@ class AzurePreprocessor():
     def format_concepts(self):
         """Loop over all top-level concepts (diagnosis, medication, procedures, etc.) and call processing"""
         self.get_admissions() # to assign admission_id
-        for concept_type, concept_config in tqdm(self.cfg.concepts.items(), desc="Concepts"):
-            if concept_type not in ['diagnosis', 'medication', 'labtest', 'procedure']:
-                raise ValueError(f'{concept_type} not implemented yet')
-            self.logger.info(f"INFO: Preprocess {concept_type}")
-            first = True
 
-            if isinstance(concept_config.filename, list):
-                for file_name in concept_config.filename:
-                    concept_config.filename = file_name
-                    self.iterate_through_file(concept_type, concept_config, first=first)
-                    first=False
-            else:
-                self.iterate_through_file(concept_type, concept_config)
-        self.save_adm(self.adm_file)
+        # Getting SP concepts
+        if cfg.SP_concepts:
+            self.logger.info("Load SP concepts")
+            ds_store = datastore(cfg.SP_concepts.datastore)
+            data_path = path=(ds_store, cfg.SP_concepts.dump_path)
+            for concept_type, concept_config in tqdm(self.cfg.SP_concepts.types.items(), desc="Concepts"):
+                if concept_type not in ['diagnosis', 'medication', 'labtest', 'procedure']:
+                    raise ValueError(f'{concept_type} not implemented yet')
+                self.logger.info(f"INFO: Preprocess {concept_type}")
+                first = True
+                concept_config.data_path = join(data_path, concept_config.filename)
+
+                if isinstance(concept_config.filename, list):
+                    for file_name in concept_config.filename:
+                        concept_config.filename = file_name
+                        self.iterate_through_file(concept_type, concept_config, first=first)
+                        first=False
+                else:
+                    self.iterate_through_file(concept_type, concept_config)
+            self.save_adm(self.adm_file)
+
+        if cfg.register_concepts:
+            raise NotImplementedError("register_concepts not implemented yet")
 
 
     def concepts_process_pipeline(self, concepts, concept_type, cfg):
@@ -308,10 +317,36 @@ class AzurePreprocessor():
             i += 1
             yield df
             
+    def get_researcher_data(path, 
+                            n_take: int | None = None,
+                            separator: str = ",",
+                            encoding: str = "utf8"):
+        base_path = f'https://forskerpln0ybkrdls01.blob.core.windows.net/researcher-data/'
+        if ".parquet" in path:
+            ds = Dataset.Tabular.from_parquet_files(path=base_path + path)
+        elif ".csv" in path or ".asc" in path:
+            ds = Dataset.Tabular.from_delimited_files(path=base_path + path, separator=separator, encoding=encoding)
+        else:
+            print("invalid filetype")
+            return None
+        
+        if n_take:
+            df = ds.take(n_take).to_pandas_dataframe()
+        else:
+            df = ds.to_pandas_dataframe()
+        return df
+
+
     def get_dataset(self, cfg: dict):
-        file_path = join(self.dump_path, cfg.filename) if self.dump_path is not None else cfg.filename
-        print(file_path)
-        ds = Dataset.Tabular.from_parquet_files(path=(self.datastore,file_path))
+        file_path = cfg.data_path
+
+        if 'parquet' in file_path:
+            ds = Dataset.Tabular.from_parquet_files(path=file_path)
+        elif ".csv" in file_path or ".asc" in file_path:
+            try:
+                ds = Dataset.Tabular.from_delimited_files(path=file_path, separator=';', encoding='utf-8')
+            except UnicodeDecodeError:
+                ds = Dataset.Tabular.from_delimited_files(path=file_path, separator=';', encoding='iso-8859-1')
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
         if self.test:

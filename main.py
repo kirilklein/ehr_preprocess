@@ -3,7 +3,6 @@ import shutil
 from preprocessors.load import instantiate, load_config
 import logging
 from azure_run.run import Run
-from azure_run import datastore
 import pathlib
 
 config_name = "azure"
@@ -19,8 +18,7 @@ def my_app(config_name):
     
     run = Run
     run.name(cfg.run_name)
-    ds_sp = datastore(cfg.data_store)
-    preprocessor = instantiate(cfg.preprocessor, {'cfg':cfg, 'logger':logger, 'datastore':ds_sp, 'dump_path': cfg.paths.dump_path})
+    preprocessor = instantiate(cfg.preprocessor, {'cfg':cfg, 'logger':logger})
     preprocessor()    
 
 if __name__=='__main__':

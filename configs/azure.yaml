@@ -13,44 +13,45 @@ paths:
 preprocessor:
   _target_: preprocessors.azure.AzurePreprocessor
 
-concepts:
-  diagnosis:
-    filename: CPMI_Diagnoser.parquet
-    keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
-    names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
-    dtypes: {CONCEPT: category}
-    chunksize: 10000000
-    file_type: parquet
-    fill_diags: false
 
-  procedure:
-    filename: CPMI_Procedurer.parquet
-    keep_cols: [CPR_hash, ProcedureCode, ServiceDatetime]
-    dtypes: {CONCEPT: category}
-    chunksize: 10000000
-    file_type: parquet
+SP_concepts:
+  data_store: "researcher_data"
+  dump_path: 'data-backup/SP-dumps/2024-09-10'
+  types:
+    diagnosis:
+      filename: CPMI_Diagnoser.parquet
+      keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
+      names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
+      dtypes: {CONCEPT: category}
+      chunksize: 10000000
+      file_type: parquet
+      fill_diags: false
 
-  medication:
-    filename: CPMI_Medicin.parquet
-    keep_cols: [CPR_hash, ATC, Administrationstidspunkt]
-    dtypes: {CONCEPT: category, 'PID': category}  
-    chunksize: 10000000
-    file_type: parquet
+# register_concepts:
+#   data_store: "researcher_data"
+#   dump_path: 'FSEID'
+#   mapping_file: ''maskerede_data/mapping.csv'
+#   kontakt_file: 'FSEID/kontakter.parquet'
+#   forloeb_file: 'FSEID/forloeb.parquet'
+#   types:
+#     register_diagnosis:
+#       datastore: "researcher_data"
+#       dump_path: 'FSEID'
+#       filename: diagnoser.asc
+#       keep_cols: [dw_ek_kontakt, diagnosekode]
+#       chunksize: 10000000
+#       file_type: parquet
 
-  labtest:
-    filename: [CPMI_Labsvar.parquet]
-    keep_cols: [CPR_hash, BestOrd, Bestillingsdato, Resultatværdi]
-    names: [PID, CONCEPT, TIMESTAMP, RESULT]
-    dtypes: {CONCEPT: category}
-    chunksize: 10000000
-    file_type: parquet
-    
 admissions:
+  datastore: "researcher_data"
+  dump_path: 'data-backup/SP-dumps/2024-09-10'
   filename: CPMI_ADTHaendelser.parquet
   keep_cols: [CPR_hash, Flyt_ind, Flyt_ud, Afsnit, ADT_haendelse]
   file_type: parquet
 
 patients_info:
+  datastore: "researcher_data"
+  dump_path: 'data-backup/SP-dumps/2024-09-10'
   filename: CPMI_PatientInfo.parquet
   names: [PID, BIRTHDATE, DEATHDATE, GENDER]
   usecols: [0, 1, 2, 3]
