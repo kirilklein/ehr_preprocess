@@ -1,3 +1,4 @@
+
 import pandas as pd
 import os
 from azureml.core import Dataset
@@ -7,6 +8,7 @@ from datetime import timedelta
 from azure_run import datastore
 from . import formatters
 import hashlib 
+from .load import Config
 
 class AzurePreprocessor():
     # load data in dask
@@ -46,24 +48,23 @@ class AzurePreprocessor():
                     self.iterate_through_file(concept_type, concept_config)
 
         if 'register_concepts' in self.cfg:
-            forl, kont = self.load_register_concepts()
             self.logger.info("Load register concepts")
-            for concept_type, concept_config in tqdm(self.cfg.SP_concepts.types.items(), desc="Concepts"):
+            forl, kont = self.get_register_concepts()
+            self.logger.info("Register concepts loaded")
+            for concept_type, concept_config in tqdm(self.cfg.register_concepts.types.items(), desc="Concepts"):
                 if concept_type not in ['register_diagnosis']:
                     raise ValueError(f'{concept_type} not implemented yet')
                 self.logger.info(f"INFO: Preprocess {concept_type}")
                 first = True
                 concept_config.data_path = join(self.cfg.register_concepts.dump_path, concept_config.filename)
-                concept_config.data_store = self.cfg.SP_concepts.data_store
+                concept_config.data_store = self.cfg.register_concepts.data_store
                 if isinstance(concept_config.filename, list):
                     for file_name in concept_config.filename:
                         concept_config.filename = file_name
-                        self.iterate_through_file(concept_type, concept_config, first=first, kwargs={'forl': forl, 'kont': kont})
+                        self.iterate_through_file(concept_type, concept_config, first=first, kwargs={'forl': forl, 'kont': kont, 'mapping': mapping})
                         first=False
                 else:
-                    self.iterate_through_file(concept_type, concept_config, kwargs={'forl': forl, 'kont': kont})
-
-            raise NotImplementedError("register_concepts not implemented yet")
+                    self.iterate_through_file(concept_type, concept_config, kwargs={'forl': forl, 'kont': kont, 'mapping': mapping})
         self.save(self.adm_file, self.cfg.admissions, 'admissions')
 
     def iterate_through_file(self, concept_type, concept_config, first=True, kwargs={}):
@@ -240,30 +241,25 @@ class AzurePreprocessor():
         """Load register concepts"""
         self.logger.info("Load register concepts")
         config = self.cfg.register_concepts
-        mapping = self.load_pandas({'data_path': join(config.dump_path, config.mapping_file), 'data_store': config.data_store})
-        forl = self.load_pandas({'data_path': join(config.dump_path, config.forloeb_file), 'data_store': config.data_store})
-        kont = self.load_pandas({'data_path': join(config.dump_path, config.kontakt_file), 'data_store': config.data_store})
+        mapping = self.load_pandas(Config({'data_path': join(config.mapping_file), 'data_store': config.data_store}))
+        forl = self.load_pandas(Config({'data_path': join(config.dump_path, config.forloeb_file), 'data_store': config.data_store}))
+        kont = self.load_pandas(Config({'data_path': join(config.dump_path, config.kontakt_file), 'data_store': config.data_store}))
 
         forl = forl.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
         forl = forl.dropna(subset=['CPR_hash'])
-        forl = forl.keep_columns(columns=[
-                                    'dw_ek_forloeb', 'dw_ek_helbredsforloeb', 
-                                    'dato_start', 'tidspunkt_start', 
-                                    'data_slut', 'tidspunkt_slut', 
-                                    'PID', 'CPR_hash'])
+        forl = forl.loc[:, ['dw_ek_forloeb', 'dw_ek_helbredsforloeb', 
+                    'dato_start', 'tidspunkt_start', 
+                    'CPR_hash', 'henvisningsaarsag']]
         forl['TIMESTAMP_START'] = pd.to_datetime(forl['dato_start'] + ' ' + forl['tidspunkt_start'])
-        forl['TIMESTAMP_END'] = pd.to_datetime(forl['dato_slut'] + ' ' + forl['tidspunkt_slut'])
-        forl.drop(columns=['dato_start', 'dato_slut', 'tidspunkt_start', 'tidspunkt_slut'])
+        forl.drop(columns=['dato_start', 'tidspunkt_start'])
 
         kont = kont.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
         kont = kont.dropna(subset=['CPR_hash'])
         kont = kont.loc[:, ['dw_ek_kontakt', 'dw_ek_forloeb', 
                     'dato_start', 'tidspunkt_start', 
-                    'dato_slut', 'tidspunkt_slut', 
-                    'PID', 'CPR_hash', 'aktionsdiagnose']]
+                    'CPR_hash', 'aktionsdiagnose']]
         kont['TIMESTAMP_START'] = pd.to_datetime(kont['dato_start'] + ' ' + kont['tidspunkt_start'])
-        kont['TIMESTAMP_END'] = pd.to_datetime(kont['dato_slut'] + ' ' + kont['tidspunkt_slut'])
-        kont.drop(columns=['dato_start', 'dato_slut', 'tidspunkt_start', 'tidspunkt_slut'])
+        kont.drop(columns=['dato_start', 'tidspunkt_start'])
 
         return forl, kont
 
@@ -276,6 +272,7 @@ class AzurePreprocessor():
         return df
 
     def load_pandas(self, cfg: dict):
+        print(cfg)
         ds = self.get_dataset(cfg)
         df = ds.to_pandas_dataframe()
         return df
@@ -308,7 +305,7 @@ class AzurePreprocessor():
             ds = Dataset.Tabular.from_parquet_files(path=(ds_store,file_path))
         elif ".csv" in file_path or ".asc" in file_path:
             try:
-                ds = Dataset.Tabular.from_delimited_files(path=(ds_store,file_path), separator=';', encoding='utf-8')
+                ds = Dataset.Tabular.from_delimited_files(path=(ds_store,file_path), separator=';', encoding='utf8')
             except UnicodeDecodeError:
                 ds = Dataset.Tabular.from_delimited_files(path=(ds_store,file_path), separator=';', encoding='iso-8859-1')
         if 'keep_cols' in cfg:

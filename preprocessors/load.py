@@ -18,31 +18,6 @@ def load_config(config_file):
         cfg = yaml.safe_load(ymlfile)
     cfg = Config(cfg)
     return cfg
-
-def load_pandas(self, cfg: dict):
-    ds = self.get_dataset(cfg)
-    df = ds.to_pandas_dataframe()
-    return df
-
-def load_dask(self, cfg: dict):
-    ds = self.get_dataset(cfg)
-    df = ds.to_dask_dataframe()
-    return df
-
-def load_chunks(self, cfg: dict, pandas=True):
-    """Generate chunks of the dataset and convert to pandas/dask df"""
-    ds = self.get_dataset(cfg)
-    i = cfg.start_chunk if 'start_chunk' in cfg else 0
-    while True:
-        self.logger.info(f"chunk {i}")
-        chunk = ds.skip(i * cfg.chunksize)
-        chunk = chunk.take(cfg.chunksize)
-        df = chunk.to_pandas_dataframe() if pandas else chunk.to_dask_dataframe()
-        if len(df.index) == 0:
-            self.logger.info("empty")
-            break
-        i += 1
-        yield df
     
 class Config(dict):
     def __init__(self, dictionary=None):

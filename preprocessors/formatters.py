@@ -1,3 +1,5 @@
+import pandas as pd
+
 def format_diagnosis(diag, cfg):
     # Search code in diagnoses. If there is no diagnosis code, use the diagnosis extracted from the text
     diag['code'] = diag['Diagnose'].str.extract(r'\((D.*?)\)', expand=False)
@@ -28,13 +30,48 @@ def format_medication(med, cfg):
     med['CONCEPT'] = med['CONCEPT'].map(lambda x: 'M'+x)
     return med
 
-def format_register_diagnosis(diag, cfg, forl, kont):
+def format_register_diagnosis(diag, cfg, forl, kont, mapping):
+    def add_forl_diag(df, forl):
+        commons = pd.merge(df[['PID']], forl[['CPR_hash']], left_on='PID', right_on='CPR_hash')
+        forl_filtered = forl[forl['CPR_hash'].isin(commons['CPR_hash'])]
+        merged = pd.merge(forl_filtered, df, left_on=['CPR_hash', 'henvisningsaarsag'], right_on=['PID', 'CONCEPT'], how='left', indicator=True)
+        mask = merged['_merge'] == 'left_only'
+        new_rows = forl_filtered[mask]
+        
+        if new_rows.empty:
+            return df
+
+        new_rows = new_rows.rename(columns={'CPR_hash': 'PID', 'henvisningsaarsag': 'CONCEPT', 'TIMESTAMP_START': 'TIMESTAMP'})
+        new_rows = new_rows.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
+        exploded_df = pd.concat([df, new_rows], ignore_index=True)
+        return exploded_df
+
+    diag['dw_ek_kontakt'] = diag['dw_ek_kontakt'].astype(int)
+    kont['dw_ek_kontakt'] = kont['dw_ek_kontakt'].astype(int)
+
     merged_df = pd.merge(
         diag, 
         kont, 
         on="dw_ek_kontakt", 
         how="inner"
-    ).drop(['dw_ek_kontakt', 'PID', 'TIMESTAMP_END'], axis=1)
-    merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'Diagnosekode':'CONCEPT', 'TIMESTAMP_START':'TIMESTAMP', })
+    ).drop(['dw_ek_kontakt'], axis=1)
+    merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'diagnosekode':'CONCEPT', 'TIMESTAMP_START':'TIMESTAMP', })
+    if cfg.add_details:
+        print('Adding details')
+        merged_df = add_forl_diag(merged_df, forl)
+    
+    merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
+    merged_df['CONCEPT'] = merged_df['CONCEPT'].where(merged_df['CONCEPT'].str.startswith('D'), 'D' + merged_df['CONCEPT'])
     return merged_df
 
+def format_register_medication(med, cfg, forl, kont, mapping):
+    merged_df = pd.merge(
+        med, 
+        mapping, 
+        on='PID',
+        how='inner'
+    ).drop(['PID'], axis=1)
+    merged_df['TIMESTAMP'] = pd.to_datetime(merged_df['eksd'])
+    merged_df = merged_df.rename(columns={'ATC':'CONCEPT', 'CPR_hash':'PID'}).drop(['eksd'], axis=1)
+    merged_df['CONCEPT'] = merged_df['CONCEPT'].map(lambda x: 'M'+x)
+    return merged_df
