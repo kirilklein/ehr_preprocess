@@ -61,7 +61,6 @@ def format_register_diagnosis(diag, cfg, forl, kont, mapping):
         merged_df = add_forl_diag(merged_df, forl)
     
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
-    merged_df['CONCEPT'] = merged_df['CONCEPT'].where(merged_df['CONCEPT'].str.startswith('D'), 'D' + merged_df['CONCEPT'])
     return merged_df
 
 def format_register_medication(med, cfg, forl, kont, mapping):
@@ -83,3 +82,21 @@ def format_register_medication(med, cfg, forl, kont, mapping):
             
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP', 'VNR']]
     return merged_df
+
+def format_register_procedures(proc, cfg, forl, kont, mapping):
+    proc['dw_ek_kontakt'] = proc['dw_ek_kontakt'].astype(int)
+    kont['dw_ek_kontakt'] = kont['dw_ek_kontakt'].astype(int)
+
+    merged_df = pd.merge(
+        proc, 
+        kont, 
+        on="dw_ek_kontakt", 
+        how="inner"
+    ).drop(['dw_ek_kontakt'], axis=1)
+    merged_df['TIMESTAMP'] = pd.to_datetime(merged_df['dato_start'] + ' ' + merged_df['tidspunkt_start'])
+
+    merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'procedurekode':'CONCEPT'})    
+    merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
+    return merged_df
+
+

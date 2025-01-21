@@ -45,6 +45,11 @@ register_concepts:
       chunksize: 10000000
       file_type: parquet
       add_symptoms: false
+    register_procedure_surgical:
+      filename: procedurer_kirurgi.asc
+      keep_cols: [dw_ek_kontakt, procedurekode, dato_start, tidspunkt_start]
+      chunksize: 10000000
+      file_type: parquet
 
 admissions:
   data_store: "researcher_data"
