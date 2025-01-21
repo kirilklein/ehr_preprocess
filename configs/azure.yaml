@@ -1,4 +1,4 @@
-test: true
+test: false
 env: azure
 run_name: ehr_preprocess
 data_store: "researcher_data"
@@ -47,6 +47,11 @@ register_concepts:
       add_symptoms: true
     register_procedures_surgical:
       filename: procedurer_kirurgi.asc
+      keep_cols: [dw_ek_kontakt, procedurekode, dato_start, tidspunkt_start]
+      chunksize: 10000000
+      file_type: parquet
+    register_procedures_non_surgical:
+      filename: procedurer_andre.asc
       keep_cols: [dw_ek_kontakt, procedurekode, dato_start, tidspunkt_start]
       chunksize: 10000000
       file_type: parquet

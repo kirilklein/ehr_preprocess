@@ -52,7 +52,7 @@ class AzurePreprocessor():
             forl, kont, mapping = self.get_register_concepts()
             self.logger.info("Register concepts loaded")
             for concept_type, concept_config in tqdm(self.cfg.register_concepts.types.items(), desc="Concepts"):
-                if concept_type not in ['register_diagnosis', 'register_medication', 'register_procedure_surgical', 'register_procedure_non_surgical']:
+                if concept_type not in ['register_diagnosis', 'register_medication', 'register_procedures_surgical', 'register_procedures_non_surgical']:
                     raise ValueError(f'{concept_type} not implemented yet')
                 self.logger.info(f"INFO: Preprocess {concept_type}")
                 first = True

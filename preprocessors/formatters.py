@@ -54,7 +54,7 @@ def format_register_diagnosis(diag, cfg, forl, kont, mapping):
         kont, 
         on="dw_ek_kontakt", 
         how="inner"
-    ).drop(['dw_ek_kontakt'], axis=1)
+    )
     merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'diagnosekode':'CONCEPT', 'TIMESTAMP_START':'TIMESTAMP', })
     if cfg.add_details:
         print('Adding details')
@@ -91,15 +91,18 @@ def format_register_procedures(proc, cfg, forl, kont, mapping):
         proc, 
         kont, 
         on="dw_ek_kontakt", 
-        how="inner"
-    ).drop(['dw_ek_kontakt'], axis=1)
-    merged_df['TIMESTAMP'] = pd.to_datetime(merged_df['dato_start'] + ' ' + merged_df['tidspunkt_start'])
-
+        how="inner",
+        suffixes=('_proc', '_kont')
+    )
+    merged_df['TIMESTAMP'] = pd.to_datetime(merged_df['dato_start_proc'].astype(str) + ' ' + merged_df['tidspunkt_start_proc'].astype(str))
     merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'procedurekode':'CONCEPT'})    
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
     return merged_df
 
 def format_register_procedures_surgical(proc, cfg, forl, kont, mapping): 
+    return format_register_procedures(proc, cfg, forl, kont, mapping)
+
+def format_register_procedures_non_surgical(proc, cfg, forl, kont, mapping): 
     return format_register_procedures(proc, cfg, forl, kont, mapping)
 
 
