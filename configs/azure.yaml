@@ -41,7 +41,7 @@ register_concepts:
       add_details: false
     register_medication: 
       filename: epikur.parquet
-      keep_cols: [eksd, atc, indo, PID]
+      keep_cols: [eksd, atc, indo, PID, vnr]
       chunksize: 10000000
       file_type: parquet
       add_symptoms: false

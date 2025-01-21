@@ -72,14 +72,14 @@ def format_register_medication(med, cfg, forl, kont, mapping):
         how='inner'
     ).drop(['PID'], axis=1)
     merged_df['TIMESTAMP'] = pd.to_datetime(merged_df['eksd'])
-    merged_df = merged_df.rename(columns={'atc':'CONCEPT', 'CPR_hash':'PID'})
+    merged_df = merged_df.rename(columns={'atc':'CONCEPT', 'CPR_hash':'PID', 'vnr':'VNR'})
     merged_df['CONCEPT'] = merged_df['CONCEPT'].map(lambda x: 'M'+x)
 
     if cfg.add_symptoms: 
         indo_df = merged_df[merged_df['indo'] != 'nan'].copy()
         indo_df['CONCEPT'] = 'S' + indo_df['indo'].astype(float).astype(int).astype(str) # Convert to int to remove decimal point
-        new_rows = indo_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
+        new_rows = indo_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP', 'VNR']]
         merged_df = pd.concat([merged_df, new_rows], ignore_index=True)
             
-    merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
+    merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP', 'VNR']]
     return merged_df
