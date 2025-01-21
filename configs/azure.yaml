@@ -44,7 +44,7 @@ register_concepts:
       keep_cols: [eksd, atc, indo, PID]
       chunksize: 10000000
       file_type: parquet
-      add_details: false
+      add_symptoms: false
 
 admissions:
   data_store: "researcher_data"

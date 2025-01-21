@@ -49,10 +49,10 @@ class AzurePreprocessor():
 
         if 'register_concepts' in self.cfg:
             self.logger.info("Load register concepts")
-            forl, kont = self.get_register_concepts()
+            forl, kont, mapping = self.get_register_concepts()
             self.logger.info("Register concepts loaded")
             for concept_type, concept_config in tqdm(self.cfg.register_concepts.types.items(), desc="Concepts"):
-                if concept_type not in ['register_diagnosis']:
+                if concept_type not in ['register_diagnosis', 'register_medication']:
                     raise ValueError(f'{concept_type} not implemented yet')
                 self.logger.info(f"INFO: Preprocess {concept_type}")
                 first = True
@@ -261,7 +261,8 @@ class AzurePreprocessor():
         kont['TIMESTAMP_START'] = pd.to_datetime(kont['dato_start'] + ' ' + kont['tidspunkt_start'])
         kont.drop(columns=['dato_start', 'tidspunkt_start'])
 
-        return forl, kont
+        mapping = mapping.dropna(subset=['CPR_hash'])
+        return forl, kont, mapping
 
     def select_columns(self, df, cfg):
         """Select and Rename columns"""
