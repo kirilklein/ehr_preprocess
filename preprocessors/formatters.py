@@ -99,4 +99,7 @@ def format_register_procedures(proc, cfg, forl, kont, mapping):
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
     return merged_df
 
+def format_register_procedures_surgical(proc, cfg, forl, kont, mapping): 
+    return format_register_procedures(proc, cfg, forl, kont, mapping)
+
 

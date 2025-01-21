@@ -38,14 +38,14 @@ register_concepts:
       keep_cols: [dw_ek_kontakt, diagnosekode]
       chunksize: 10000000
       file_type: parquet
-      add_details: false
+      add_details: true
     register_medication: 
       filename: epikur.parquet
       keep_cols: [eksd, atc, indo, PID, vnr]
       chunksize: 10000000
       file_type: parquet
-      add_symptoms: false
-    register_procedure_surgical:
+      add_symptoms: true
+    register_procedures_surgical:
       filename: procedurer_kirurgi.asc
       keep_cols: [dw_ek_kontakt, procedurekode, dato_start, tidspunkt_start]
       chunksize: 10000000
