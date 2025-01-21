@@ -273,7 +273,6 @@ class AzurePreprocessor():
         return df
 
     def load_pandas(self, cfg: dict):
-        print(cfg)
         ds = self.get_dataset(cfg)
         df = ds.to_pandas_dataframe()
         return df

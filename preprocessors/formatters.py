@@ -57,7 +57,6 @@ def format_register_diagnosis(diag, cfg, forl, kont, mapping):
     )
     merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'diagnosekode':'CONCEPT', 'TIMESTAMP_START':'TIMESTAMP', })
     if cfg.add_details:
-        print('Adding details')
         merged_df = add_forl_diag(merged_df, forl)
     
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
