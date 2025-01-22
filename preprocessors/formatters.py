@@ -42,9 +42,10 @@ def format_register_diagnosis(diag, cfg, forl, kont, mapping):
         how="inner"
     )
     merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'diagnosekode':'CONCEPT', 'TIMESTAMP_START':'TIMESTAMP', })
-    
+
     if cfg.add_referral_reason:
         new_rows = forl.loc[:, ['CPR_hash', 'henvisningsaarsag', 'TIMESTAMP_START']]
+        new_rows = new_rows[new_rows['henvisningsaarsag'] != 'Ukendt']
         new_rows = new_rows.rename(columns={'CPR_hash': 'PID', 'henvisningsaarsag': 'CONCEPT', 'TIMESTAMP_START': 'TIMESTAMP'})
         merged_df = pd.concat([merged_df, new_rows], ignore_index=True)
     

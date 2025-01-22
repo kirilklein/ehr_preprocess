@@ -304,7 +304,7 @@ class AzurePreprocessor():
         if 'parquet' in file_path:
             ds = Dataset.Tabular.from_parquet_files(path=(ds_store,file_path))
         elif ".csv" in file_path or ".asc" in file_path:
-            encodings = ['utf8', 'iso88591']
+            encodings = ['iso88591', 'utf8']
             for encoding in encodings:
                 try:
                     ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';', encoding=encoding)
