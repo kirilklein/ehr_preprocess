@@ -38,7 +38,7 @@ register_concepts:
       keep_cols: [dw_ek_kontakt, diagnosekode]
       chunksize: 10000000
       file_type: parquet
-      add_details: true
+      add_referral_reason: true
     register_medication: 
       filename: epikur.parquet
       keep_cols: [eksd, atc, indo, PID, vnr]

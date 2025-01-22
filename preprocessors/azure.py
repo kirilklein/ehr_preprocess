@@ -304,10 +304,15 @@ class AzurePreprocessor():
         if 'parquet' in file_path:
             ds = Dataset.Tabular.from_parquet_files(path=(ds_store,file_path))
         elif ".csv" in file_path or ".asc" in file_path:
-            try:
-                ds = Dataset.Tabular.from_delimited_files(path=(ds_store,file_path), separator=';', encoding='utf8')
-            except UnicodeDecodeError:
-                ds = Dataset.Tabular.from_delimited_files(path=(ds_store,file_path), separator=';', encoding='iso-8859-1')
+            encodings = ['utf8', 'iso88591']
+            for encoding in encodings:
+                try:
+                    ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';', encoding=encoding)
+                    break
+                except (UnicodeDecodeError, VisitError):
+                    continue
+            else:
+                raise ValueError("Unable to read the file with the provided encodings.")
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
         if self.test:
