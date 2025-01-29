@@ -14,21 +14,21 @@ preprocessor:
   _target_: preprocessors.azure.AzurePreprocessor
 
 concepts:
-  diagnosis:
-    filename: CPMI_Diagnoser.parquet
-    keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
-    names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
-    dtypes: {CONCEPT: category}
-    chunksize: 10000000
-    file_type: parquet
-    fill_diags: false
+  # diagnosis:
+  #   filename: CPMI_Diagnoser.parquet
+  #   keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
+  #   names: [PID, Diagnosekode, Diagnose, TIMESTAMP]
+  #   dtypes: {CONCEPT: category}
+  #   chunksize: 10000000
+  #   file_type: parquet
+  #   fill_diags: false
 
-  procedure:
-    filename: CPMI_Procedurer.parquet
-    keep_cols: [CPR_hash, ProcedureCode, ServiceDatetime]
-    dtypes: {CONCEPT: category}
-    chunksize: 10000000
-    file_type: parquet
+  # procedure:
+  #   filename: CPMI_Procedurer.parquet
+  #   keep_cols: [CPR_hash, ProcedureCode, ServiceDatetime]
+  #   dtypes: {CONCEPT: category}
+  #   chunksize: 10000000
+  #   file_type: parquet
 
   medication:
     filename: CPMI_Medicin.parquet
@@ -37,13 +37,13 @@ concepts:
     chunksize: 10000000
     file_type: parquet
 
-  labtest:
-    filename: [CPMI_Labsvar.parquet]
-    keep_cols: [CPR_hash, BestOrd, Bestillingsdato, Resultatværdi]
-    names: [PID, CONCEPT, TIMESTAMP, RESULT]
-    dtypes: {CONCEPT: category}
-    chunksize: 10000000
-    file_type: parquet
+  # labtest:
+  #   filename: [CPMI_Labsvar.parquet]
+  #   keep_cols: [CPR_hash, BestOrd, Bestillingsdato, Resultatværdi]
+  #   names: [PID, CONCEPT, TIMESTAMP, RESULT]
+  #   dtypes: {CONCEPT: category}
+  #   chunksize: 10000000
+  #   file_type: parquet
     
 admissions:
   filename: CPMI_ADTHaendelser.parquet

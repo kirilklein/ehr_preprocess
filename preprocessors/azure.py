@@ -40,9 +40,12 @@ class AzurePreprocessor():
             self.save(df, concept_config, f'concept.{concept_type}')
 
     def iterate_through_file(self, concept_type, concept_config, first=True):
+        ids = set()
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
             # process each chunk here.
             chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
+            ids.update(chunk_processed.PID.unique())
+            print(f"Number of unique patients: {len(ids)}")
             if first:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
                 first = False
