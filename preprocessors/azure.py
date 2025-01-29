@@ -192,8 +192,8 @@ class AzurePreprocessor():
         new_admissions['ADMISSION_ID'] = new_admissions.apply(
             lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
         )
-
-        adm_file = pd.concat([adm_file, new_admissions[['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]], ignore_index=True)
+        new_admission = new_admission.loc[:, ['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]
+        adm_file = pd.concat([adm_file, new_admissions], ignore_index=True)
 
         return df_sorted.drop(columns=['TIMESTAMP_DIFF', 'NEW_ADMISSION']), adm_file
 
