@@ -73,20 +73,41 @@ def format_register_medication(med, cfg, forl, kont, mapping):
     return merged_df
 
 def format_register_procedures(proc, cfg, forl, kont, mapping):
-    proc['dw_ek_kontakt'] = proc['dw_ek_kontakt'].astype(int)
-    kont['dw_ek_kontakt'] = kont['dw_ek_kontakt'].astype(int)
+    # Ensure proper data types
+    proc['dw_ek_kontakt'] = proc['dw_ek_kontakt'].astype('Int64') 
+    kont['dw_ek_kontakt'] = kont['dw_ek_kontakt'].astype('Int64')
 
-    merged_df = pd.merge(
-        proc, 
-        kont, 
-        on="dw_ek_kontakt", 
+    proc_with_kontakt = proc[~proc['dw_ek_kontakt'].isna()].copy()
+    proc_with_forloeb = proc[proc['dw_ek_kontakt'].isna()].copy()
+
+    merged_kont_df = pd.merge(
+        proc_with_kontakt,
+        kont,
+        on="dw_ek_kontakt",
         how="inner",
         suffixes=('_proc', '_kont')
     )
-    merged_df['TIMESTAMP'] = pd.to_datetime(merged_df['dato_start_proc'].astype(str) + ' ' + merged_df['tidspunkt_start_proc'].astype(str))
-    merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'procedurekode':'CONCEPT'})    
+
+    merged_forl_df = pd.merge(
+        proc_with_forloeb,
+        forl,
+        on="dw_ek_forloeb",
+        how="left",
+        suffixes=('_proc', '_forl')
+    )
+
+    merged_df = pd.concat([merged_kont_df, merged_forl_df], ignore_index=True)
+
+    # Add TIMESTAMP 
+    merged_df['TIMESTAMP'] = pd.to_datetime(
+        merged_df['dato_start_proc'].astype(str) + ' ' + merged_df['tidspunkt_start_proc'].astype(str)
+    )
+
+    # Rename
+    merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'procedurekode':'CONCEPT'})
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
     return merged_df
+
 
 def format_register_procedures_surgical(proc, cfg, forl, kont, mapping): 
     return format_register_procedures(proc, cfg, forl, kont, mapping)

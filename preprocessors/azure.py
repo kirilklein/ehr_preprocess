@@ -110,7 +110,7 @@ class AzurePreprocessor():
         self.cfg.patients_info.data_path = join(config.dump_path, config.filename)
         df = self.load_pandas(self.cfg.patients_info)
         if self.test:
-            df = df.sample(10000)
+            df = df.sample(50000)
         df = self.select_columns(df, self.cfg.patients_info)
         # Convert info dict to dataframe
         self.save(df, self.cfg.patients_info, 'patients_info')
@@ -316,7 +316,7 @@ class AzurePreprocessor():
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
         if self.test:
-            ds = ds.take(10000)
+            ds = ds.take(50000)
         return ds
     
     def save(self, df, cfg, filename, mode='w'):
