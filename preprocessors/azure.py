@@ -110,7 +110,7 @@ class AzurePreprocessor():
         self.cfg.patients_info.data_path = join(config.dump_path, config.filename)
         df = self.load_pandas(self.cfg.patients_info)
         if self.test:
-            df = df.sample(50000)
+            df = df.sample(500000)
         df = self.select_columns(df, self.cfg.patients_info)
         # Convert info dict to dataframe
         self.save(df, self.cfg.patients_info, 'patients_info')
@@ -192,7 +192,7 @@ class AzurePreprocessor():
         new_admissions['ADMISSION_ID'] = new_admissions.apply(
             lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
         )
-        new_admission = new_admission.loc[:, ['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]
+        new_admissions = new_admissions.loc[:, ['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]
         adm_file = pd.concat([adm_file, new_admissions], ignore_index=True)
 
         return df_sorted.drop(columns=['TIMESTAMP_DIFF', 'NEW_ADMISSION']), adm_file
@@ -316,7 +316,7 @@ class AzurePreprocessor():
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
         if self.test:
-            ds = ds.take(50000)
+            ds = ds.take(500000)
         return ds
     
     def save(self, df, cfg, filename, mode='w'):
@@ -330,7 +330,7 @@ class AzurePreprocessor():
                 if os.path.exists(path):
                     existing_df = pd.read_parquet(path)
                     df = pd.concat([existing_df, df], ignore_index=True)
-                df.to_parquet(path, index=True, engine='fastparquet')
+                df.to_parquet(path, index=True, engine='fastparquet', append=(mode == 'a'))
             elif file_type == 'csv':
                 path = os.path.join(out, f'{filename}.csv')
                 df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))
