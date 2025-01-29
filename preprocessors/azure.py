@@ -33,7 +33,7 @@ class AzurePreprocessor():
             self.logger.info(f"INFO: Filter {concept_type}")            
             df = self.load_pandas(concept_config)
             if self.test:
-                df = df.sample(10000)
+                df = df.sample(50000)
             df = self.select_columns(df, concept_config)
             df = self.change_dtype(df, concept_config)
             df = self.filter_dates_pipeline(df, concept_config)
@@ -43,6 +43,7 @@ class AzurePreprocessor():
         ids = set()
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
             # process each chunk here.
+            print(f"Number of unique patients: {chunk['CPR_hash'].nunique()}")
             chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
             ids.update(chunk_processed.PID.unique())
             print(f"Number of unique patients: {len(ids)}")
@@ -125,11 +126,14 @@ class AzurePreprocessor():
     
     @staticmethod
     def format_medication(med, cfg):
+        print('In format meds')
+        print(med['CPR_hash'].nunique())
         med.loc[:, 'CONCEPT'] = med.ATC.fillna('Ordineret_lægemiddel')
         med.loc[:, 'TIMESTAMP'] = med.Administrationstidspunkt.fillna("Bestillingsdato")
         med = med.rename(columns={'CPR_hash':'PID'})
         med = med[['PID','CONCEPT','TIMESTAMP']]
         med['CONCEPT'] = med['CONCEPT'].map(lambda x: 'M'+x)
+        print(med['PID'].nunique())
         return med
 
     def patients_info(self):
@@ -246,16 +250,17 @@ class AzurePreprocessor():
             if current_row is None:
                 current_row = row
                 continue
-
-            # Check for overlap or if next admission is within 24 hours after the current admission's discharge
-            if row['Flyt_ind'] <= current_row['Flyt_ud'] + timedelta(hours=24) and row['CPR_hash'] == current_row['CPR_hash']:
-                # Extend the current admission's discharge time if the next admission's discharge time is later
-                current_row['Flyt_ud'] = max(current_row['Flyt_ud'], row['Flyt_ud'])
-            else:
-                # No overlap within 24 hours, add the current admission to merged_admissions and start a new current admission
-                merged_admissions.append(current_row.to_dict())
-                current_row = row
-        merged_admissions.append(current_row.to_dict())
+            
+            merged_admissions.append(current_row.to_dict())
+            # # Check for overlap or if next admission is within 24 hours after the current admission's discharge
+            # if row['Flyt_ind'] <= current_row['Flyt_ud'] + timedelta(hours=24) and row['CPR_hash'] == current_row['CPR_hash']:
+            #     # Extend the current admission's discharge time if the next admission's discharge time is later
+            #     current_row['Flyt_ud'] = max(current_row['Flyt_ud'], row['Flyt_ud'])
+            # else:
+            #     # No overlap within 24 hours, add the current admission to merged_admissions and start a new current admission
+            #     merged_admissions.append(current_row.to_dict())
+            #     current_row = row
+        # merged_admissions.append(current_row.to_dict())
 
         events = []
         for admission in merged_admissions:
@@ -318,7 +323,7 @@ class AzurePreprocessor():
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
         if self.test:
-            ds = ds.take(10000)
+            ds = ds.take(50000)
         return ds
     
     def save(self, df, cfg, filename, mode='w'):
