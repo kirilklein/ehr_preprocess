@@ -327,7 +327,10 @@ class AzurePreprocessor():
             os.makedirs(out, exist_ok=True)
             if file_type == 'parquet':
                 path = os.path.join(out, f'{filename}.parquet')
-                df.to_parquet(path)
+                if os.path.exists(path):
+                    existing_df = pd.read_parquet(path)
+                    df = pd.concat([existing_df, df], ignore_index=True)
+                df.to_parquet(path, index=True, engine='fastparquet')
             elif file_type == 'csv':
                 path = os.path.join(out, f'{filename}.csv')
                 df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))
