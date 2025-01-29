@@ -5,7 +5,7 @@ from tqdm import tqdm
 import hashlib
 from os.path import join
 from datetime import timedelta
-
+from fastparquet import write, ParquetFile
 
 class AzurePreprocessor():
     # load data in dask
@@ -43,10 +43,8 @@ class AzurePreprocessor():
         ids = set()
         for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
             # process each chunk here.
-            print(f"Number of unique patients: {chunk['CPR_hash'].nunique()}")
             chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
             ids.update(chunk_processed.PID.unique())
-            print(f"Number of unique patients: {len(ids)}")
             if first:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
                 first = False
@@ -126,14 +124,11 @@ class AzurePreprocessor():
     
     @staticmethod
     def format_medication(med, cfg):
-        print('In format meds')
-        print(med['CPR_hash'].nunique())
         med.loc[:, 'CONCEPT'] = med.ATC.fillna('Ordineret_lægemiddel')
         med.loc[:, 'TIMESTAMP'] = med.Administrationstidspunkt.fillna("Bestillingsdato")
         med = med.rename(columns={'CPR_hash':'PID'})
         med = med[['PID','CONCEPT','TIMESTAMP']]
         med['CONCEPT'] = med['CONCEPT'].map(lambda x: 'M'+x)
-        print(med['PID'].nunique())
         return med
 
     def patients_info(self):
@@ -153,12 +148,17 @@ class AzurePreprocessor():
         """
         # Filter records within and outside of admission times
         in_adm, out_adm = self.filter_records_with_exisiting_admission(concept_df, self.adm_file)
+
+        assert len(in_adm) + len(out_adm) == len(concept_df)
+
         # Assign unique admission IDs to records outside of admission times
         out_adm, self.adm_file = self.assign_admission_id(out_adm, self.adm_file)
         # Combine dataframes
         result_df = pd.concat([in_adm, out_adm])
 
         result_df = result_df.drop(columns=['TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE'])
+
+        assert len(result_df) == len(concept_df)
 
         return result_df.reset_index(drop=True)
 
@@ -251,16 +251,15 @@ class AzurePreprocessor():
                 current_row = row
                 continue
             
-            merged_admissions.append(current_row.to_dict())
-            # # Check for overlap or if next admission is within 24 hours after the current admission's discharge
-            # if row['Flyt_ind'] <= current_row['Flyt_ud'] + timedelta(hours=24) and row['CPR_hash'] == current_row['CPR_hash']:
-            #     # Extend the current admission's discharge time if the next admission's discharge time is later
-            #     current_row['Flyt_ud'] = max(current_row['Flyt_ud'], row['Flyt_ud'])
-            # else:
-            #     # No overlap within 24 hours, add the current admission to merged_admissions and start a new current admission
-            #     merged_admissions.append(current_row.to_dict())
-            #     current_row = row
-        # merged_admissions.append(current_row.to_dict())
+            # Check for overlap or if next admission is within 24 hours after the current admission's discharge
+            if row['Flyt_ind'] <= current_row['Flyt_ud'] + timedelta(hours=24) and row['CPR_hash'] == current_row['CPR_hash']:
+                # Extend the current admission's discharge time if the next admission's discharge time is later
+                current_row['Flyt_ud'] = max(current_row['Flyt_ud'], row['Flyt_ud'])
+            else:
+                # No overlap within 24 hours, add the current admission to merged_admissions and start a new current admission
+                merged_admissions.append(current_row.to_dict())
+                current_row = row
+        merged_admissions.append(current_row.to_dict())
 
         events = []
         for admission in merged_admissions:
@@ -318,7 +317,6 @@ class AzurePreprocessor():
             
     def get_dataset(self, cfg: dict):
         file_path = join(self.dump_path, cfg.filename) if self.dump_path is not None else cfg.filename
-        print(file_path)
         ds = Dataset.Tabular.from_parquet_files(path=(self.datastore,file_path))
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
@@ -334,7 +332,10 @@ class AzurePreprocessor():
             os.makedirs(out, exist_ok=True)
             if file_type == 'parquet':
                 path = os.path.join(out, f'{filename}.parquet')
-                df.to_parquet(path)
+                if os.path.exists(path):
+                    existing_df = pd.read_parquet(path)
+                    df = pd.concat([existing_df, df], ignore_index=True)
+                df.to_parquet(path, index=True, engine='fastparquet')
             elif file_type == 'csv':
                 path = os.path.join(out, f'{filename}.csv')
                 df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))
