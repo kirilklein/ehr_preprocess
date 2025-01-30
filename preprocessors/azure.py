@@ -331,7 +331,7 @@ class AzurePreprocessor():
             os.makedirs(out, exist_ok=True)
             if file_type == 'parquet':
                 if i is not None:
-                    out = filename
+                    out = join(out, filename)
                     filename = i 
                     if i == 0: 
                         os.makedirs(out)
