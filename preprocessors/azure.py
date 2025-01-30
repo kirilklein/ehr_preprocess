@@ -9,6 +9,8 @@ from azure_run import datastore
 from . import formatters
 import hashlib 
 from .load import Config
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 class AzurePreprocessor():
     # load data in dask
@@ -68,13 +70,13 @@ class AzurePreprocessor():
         self.save(self.adm_file, self.cfg.admissions, 'admissions')
 
     def iterate_through_file(self, concept_type, concept_config, first=True, kwargs={}):
-        for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
+        for i, chunk in enumerate(tqdm(self.load_chunks(concept_config), desc='Chunks')):
             chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config, kwargs)
             if first:
-                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
+                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w', i=i)
                 first = False
             else:
-                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='a')
+                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='a', i=i)
 
     def concepts_process_pipeline(self, concepts, concept_type, cfg, kwargs={}):
         """Process concepts"""
@@ -319,18 +321,22 @@ class AzurePreprocessor():
             ds = ds.take(500000)
         return ds
     
-    def save(self, df, cfg, filename, mode='w'):
+
+
+    def save(self, df, cfg, filename, mode='w', i=None):
         self.logger.info(f"Save {filename}")
         out = self.cfg.paths.output_dir
         file_type = cfg.file_type if 'file_type' in cfg else self.cfg.file_type
         try:
             os.makedirs(out, exist_ok=True)
             if file_type == 'parquet':
+                if i is not None:
+                    out = filename
+                    filename = i 
+                    if i == 0: 
+                        os.makedirs(out)
                 path = os.path.join(out, f'{filename}.parquet')
-                if os.path.exists(path):
-                    existing_df = pd.read_parquet(path)
-                    df = pd.concat([existing_df, df], ignore_index=True)
-                df.to_parquet(path, index=True, engine='fastparquet', append=(mode == 'a'))
+                df.to_parquet(path, index=False)
             elif file_type == 'csv':
                 path = os.path.join(out, f'{filename}.csv')
                 df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))
