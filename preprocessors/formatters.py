@@ -106,6 +106,7 @@ def format_register_procedures(proc, cfg, forl, kont, mapping):
     # Rename
     merged_df = merged_df.rename(columns={'CPR_hash':'PID', 'procedurekode':'CONCEPT'})
     merged_df = merged_df.loc[:, ['PID', 'CONCEPT', 'TIMESTAMP']]
+    merged_df['CONCEPT'] = merged_df['CONCEPT'].map(lambda x: 'P'+x)
     return merged_df
 
 
