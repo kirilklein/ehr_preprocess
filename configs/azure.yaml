@@ -21,27 +21,23 @@ SP_concepts:
     diagnosis:
       filename: CPMI_Diagnoser.parquet
       keep_cols: [CPR_hash, Diagnosekode, Diagnose, Noteret_dato]
-      dtypes: {CONCEPT: category}
       chunksize: 10000000
       file_type: csv
       fill_diags: false
     procedure:
       filename: CPMI_Procedurer.parquet
       keep_cols: [CPR_hash, ProcedureCode, ServiceDatetime]
-      dtypes: {CONCEPT: category}
       chunksize: 10000000
       file_type: csv
     medication:
       filename: CPMI_Medicin.parquet
       keep_cols: [CPR_hash, ATC, Administrationstidspunkt]
-      dtypes: {CONCEPT: category, 'PID': category}  
       chunksize: 10000000
       file_type: csv
     labtest:
       filename: CPMI_Labsvar.parquet
       keep_cols: [CPR_hash, BestOrd, Bestillingsdato, Resultatværdi]
       names: [PID, CONCEPT, TIMESTAMP, RESULT]
-      dtypes: {CONCEPT: category}
       chunksize: 10000000
       file_type: csv
 
@@ -58,7 +54,7 @@ register_concepts:
       chunksize: 10000000
       file_type: csv
       add_referral_reason: true
-    register_medication: 
+    register_medication:
       filename: epikur.parquet
       keep_cols: [eksd, atc, indo, PID, vnr]
       chunksize: 10000000

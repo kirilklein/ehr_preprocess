@@ -32,42 +32,35 @@ class AzurePreprocessor():
         self.get_admissions() # to assign admission_id
 
         # Getting SP concepts
-        if 'SP_concepts' in self.cfg:
-            self.logger.info("Load SP concepts")
-            for concept_type, concept_config in tqdm(self.cfg.SP_concepts.types.items(), desc="Concepts"):
-                if concept_type not in ['diagnosis', 'medication', 'labtest', 'procedure']:
-                    raise ValueError(f'{concept_type} not implemented yet')
-                self.logger.info(f"INFO: Preprocess {concept_type}")
-                first = True
-                concept_config.data_path = join(self.cfg.SP_concepts.dump_path, concept_config.filename)
-                concept_config.data_store = self.cfg.SP_concepts.data_store
-                if isinstance(concept_config.filename, list):
-                    for file_name in concept_config.filename:
-                        concept_config.filename = file_name
-                        self.iterate_through_file(concept_type, concept_config, first=first)
-                        first=False
-                else:
-                    self.iterate_through_file(concept_type, concept_config)
-
-        if 'register_concepts' in self.cfg:
-            self.logger.info("Load register concepts")
-            forl, kont, mapping = self.get_register_concepts()
-            self.logger.info("Register concepts loaded")
-            for concept_type, concept_config in tqdm(self.cfg.register_concepts.types.items(), desc="Concepts"):
-                if concept_type not in ['register_diagnosis', 'register_medication', 'register_procedures_surgical', 'register_procedures_non_surgical']:
-                    raise ValueError(f'{concept_type} not implemented yet')
-                self.logger.info(f"INFO: Preprocess {concept_type}")
-                first = True
-                concept_config.data_path = join(self.cfg.register_concepts.dump_path, concept_config.filename)
-                concept_config.data_store = self.cfg.register_concepts.data_store
-                if isinstance(concept_config.filename, list):
-                    for file_name in concept_config.filename:
-                        concept_config.filename = file_name
-                        self.iterate_through_file(concept_type, concept_config, first=first, kwargs={'forl': forl, 'kont': kont, 'mapping': mapping})
-                        first=False
-                else:
-                    self.iterate_through_file(concept_type, concept_config, kwargs={'forl': forl, 'kont': kont, 'mapping': mapping})
+        self.process_concept_group('SP_concepts', ['diagnosis', 'medication', 'labtest', 'procedure'])
+        self.process_concept_group('register_concepts', [
+            'register_diagnosis', 'register_medication', 'register_procedures_surgical', 'register_procedures_non_surgical'
+        ])
         self.save(self.adm_file, self.cfg.admissions, 'admissions')
+
+    def process_concept_group(self, group_name, allowed_types):
+        if group_name in self.cfg:
+            self.logger.info(f"Load {group_name}")
+            kwargs = {}
+            if group_name == 'register_concepts':
+                forl, kont, mapping = self.get_register_concepts()
+                kwargs = {'forl': forl, 'kont': kont, 'mapping': mapping}
+            
+            for concept_type, concept_config in tqdm(getattr(self.cfg, group_name).types.items(), desc="Concepts"):
+                if concept_type not in allowed_types:
+                    raise ValueError(f'{concept_type} not implemented yet')
+                self.logger.info(f"INFO: Preprocess {concept_type}")
+                first = True
+                concept_config.data_path = join(getattr(self.cfg, group_name).dump_path, concept_config.filename)
+                concept_config.data_store = getattr(self.cfg, group_name).data_store
+                if isinstance(concept_config.filename, list):
+                    for file_name in concept_config.filename:
+                        concept_config.filename = file_name
+                        self.iterate_through_file(concept_type, concept_config, first=first, kwargs=kwargs)
+                        first=False
+                else:
+                    self.iterate_through_file(concept_type, concept_config, kwargs=kwargs)
+
 
     def iterate_through_file(self, concept_type, concept_config, first=True, kwargs=None):
         if kwargs is None:
@@ -255,7 +248,7 @@ class AzurePreprocessor():
                     'dato_start', 'tidspunkt_start', 
                     'CPR_hash', 'henvisningsaarsag']]
         forl['TIMESTAMP_START'] = pd.to_datetime(forl['dato_start'] + ' ' + forl['tidspunkt_start'])
-        forl.drop(columns=['dato_start', 'tidspunkt_start'])
+        forl = forl.drop(columns=['dato_start', 'tidspunkt_start'])
 
         kont = kont.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
         kont = kont.dropna(subset=['CPR_hash'])
@@ -263,7 +256,7 @@ class AzurePreprocessor():
                     'dato_start', 'tidspunkt_start', 
                     'CPR_hash', 'aktionsdiagnose']]
         kont['TIMESTAMP_START'] = pd.to_datetime(kont['dato_start'] + ' ' + kont['tidspunkt_start'])
-        kont.drop(columns=['dato_start', 'tidspunkt_start'])
+        kont = kont.drop(columns=['dato_start', 'tidspunkt_start'])
 
         mapping = mapping.dropna(subset=['CPR_hash'])
         return forl, kont, mapping
@@ -313,7 +306,7 @@ class AzurePreprocessor():
                 try:
                     ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';', encoding=encoding)
                     break
-                except UnicodeDecodeError
+                except UnicodeDecodeError:
                     continue
             else:
                 raise ValueError("Unable to read the file with the provided encodings.")
@@ -335,8 +328,7 @@ class AzurePreprocessor():
                 if i is not None:
                     out = join(out, filename)
                     filename = i 
-                    if i == 0: 
-                        os.makedirs(out)
+                    os.makedirs(out, exist_ok=True)
                 path = os.path.join(out, f'{filename}.parquet')
                 df.to_parquet(path, index=False)
             elif file_type == 'csv':
