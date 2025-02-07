@@ -69,7 +69,9 @@ class AzurePreprocessor():
                     self.iterate_through_file(concept_type, concept_config, kwargs={'forl': forl, 'kont': kont, 'mapping': mapping})
         self.save(self.adm_file, self.cfg.admissions, 'admissions')
 
-    def iterate_through_file(self, concept_type, concept_config, first=True, kwargs={}):
+    def iterate_through_file(self, concept_type, concept_config, first=True, kwargs=None):
+        if kwargs is None:
+            kwargs = {}
         for i, chunk in enumerate(tqdm(self.load_chunks(concept_config), desc='Chunks')):
             chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config, kwargs)
             if first:
@@ -311,7 +313,7 @@ class AzurePreprocessor():
                 try:
                     ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';', encoding=encoding)
                     break
-                except (UnicodeDecodeError, VisitError):
+                except UnicodeDecodeError
                     continue
             else:
                 raise ValueError("Unable to read the file with the provided encodings.")

@@ -1,8 +1,6 @@
 import os
 import sys
 import time
-import hashlib
-
 import pandas as pd
 
 
@@ -86,7 +84,7 @@ def timing_function(function):
         return result
     return wrapper
 
-def change_dtype(self, df, cfg):
+def change_dtype(df, cfg):
     """Change column dtype"""
     if 'dtypes' in cfg:
         for col, dtype in cfg.dtypes.items():
