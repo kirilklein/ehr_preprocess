@@ -9,8 +9,6 @@ from azure_run import datastore
 from . import formatters
 import hashlib 
 from .load import Config
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 class AzurePreprocessor():
     # load data in dask
@@ -73,8 +71,10 @@ class AzurePreprocessor():
             else:
                 self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='a', i=i)
 
-    def concepts_process_pipeline(self, concepts, concept_type, cfg, kwargs={}):
+    def concepts_process_pipeline(self, concepts, concept_type, cfg, kwargs=None):
         """Process concepts"""
+        if kwargs is None:
+            kwargs = {}
         formatter = getattr(formatters, f"format_{concept_type}")
         concepts = formatter(concepts, cfg, **kwargs)
         self.initial_patients = self.initial_patients | set(concepts.PID.unique())
@@ -305,10 +305,12 @@ class AzurePreprocessor():
             for encoding in encodings:
                 try:
                     ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';', encoding=encoding)
+                    self.logger.info(f"Successfully loaded file with {encoding} encoding")
                     break
                 except UnicodeDecodeError:
                     continue
             else:
+                self.logger.error("Failed to load file with any of the supported encodings")
                 raise ValueError("Unable to read the file with the provided encodings.")
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
