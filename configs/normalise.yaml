@@ -1,10 +1,10 @@
 test: false
 env: azure
-run_name: normalize_labs
+run_name: normalise_labs
 save_name: med_diag_lab_proc_2024
 paths:
   output_dir: outputs/data
-  file_path: "BREAST_CANCER/formatted_data/med_diag_lab_proc_2024"
+  file_path: ""DEEP_FETAL/all_formatted_data_csv"
   dist_path: "BREAST_CANCER/processed_data/labs_distribution"
   file_name: "concept.labtest.csv"
   save_name: "normed_labtest"
