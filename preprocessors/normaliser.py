@@ -70,7 +70,7 @@ class Normaliser():
 
     def __call__(self):
         cfg = self.cfg
-        save_name = cfg.paths.save_name
+        save_name = cfg.data.save_name
         if not Path(join(cfg.paths.output_dir, save_name)).exists():
             counter = 0
             # Iterate over chunks of the CSV file
@@ -89,6 +89,8 @@ class Normaliser():
         return chunk
         
     def normalise(self, row):
+        print(row.columns)
+        print(row.head())
         if not row['CONCEPT'] in self.vocab:
             return row['RESULT']
         
