@@ -14,7 +14,7 @@ class Normaliser():
     def __init__(self, cfg, logger) -> None:
         self.cfg = cfg
         self.logger = logger
-        self.datastore =  datastore(cfg.datastore)
+        self.data_store =  datastore(cfg.paths.data_store)
         self.test = cfg.test
         self.logger.info(f"test {self.test}")
         self.firstRound = True
@@ -23,12 +23,12 @@ class Normaliser():
 
         # Load distribution data
         dist_path = join(self.cfg.paths.dist_path)
-        dist_dataset = Dataset.File.from_files(path=(self.datastore, dist_path))
+        dist_dataset = Dataset.File.from_files(path=(self.data_store, dist_path))
         mount_context = dist_dataset.mount()
         mount_context.start()
         mount_point = mount_context.mount_point
-        dist = torch.load(join(mount_point, 'lab_val_dict.pt'))
-        self.vocab = torch.load(join(mount_point, 'vocabulary.pt'))        
+        dist = torch.load(join(mount_point, 'lab_val_dict.pt'), weights_only=True)
+        self.vocab = torch.load(join(mount_point, 'vocabulary.pt'), weights_only=True)        
 
         if self.normalisation_type == 'Min_max':
             # Gets the min max values for all concepts

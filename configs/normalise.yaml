@@ -9,7 +9,7 @@ paths:
   data_path: "concept.labtest.csv"
   save_name: "normed_labtest"
   file_type: csv
-  datastore: "workspaceblobstore"
+  data_store: "workspaceblobstore"
   
 preprocessor:
   _target_: preprocessors.normaliser.Normaliser

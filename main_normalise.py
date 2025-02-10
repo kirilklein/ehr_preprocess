@@ -11,7 +11,7 @@ run = Run
 run.name(f"norm_test")
 ds = datastore("workspaceblobstore")
 
-config_name = "normalise_labtests"
+config_name = "normalise"
 def my_app(config_name):
     # datastore = Datastore.get(ws, 'workspaceblobstore')
     base_dir = dirname(realpath(__file__))
@@ -23,12 +23,12 @@ def my_app(config_name):
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     logger = logging.getLogger(__name__)
-    preprocessor = instantiate(cfg.preprocessor, {'cfg':cfg, 'logger':logger, 'datastore':ds})
+    preprocessor = instantiate(cfg.preprocessor, {'cfg':cfg, 'logger':logger})
     preprocessor()
     
     if cfg.env=='azure':
         from azure_run import file_dataset_save
-        file_dataset_save(local_path=join(cfg.paths.output_dir), datastore_name = "workspaceblobstore",
+        file_dataset_save(local_path=join(cfg.paths.output_dir), datastore_name = cfg.datastore,
                     remote_path = join("DEEP_FETAL", "all_formatted_data_csv", cfg.save_name))
         mount_context.stop()
         logger.info('Finished')
