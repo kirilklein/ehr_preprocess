@@ -301,7 +301,7 @@ class AzurePreprocessor():
         if 'parquet' in file_path:
             ds = Dataset.Tabular.from_parquet_files(path=(ds_store,file_path))
         elif 'csv' in file_path:
-            ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';')
+            ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path))
         elif ".asc" in file_path:
             encodings = ['iso88591', 'utf8']
             for encoding in encodings:
@@ -337,7 +337,7 @@ class AzurePreprocessor():
                 df.to_parquet(path, index=False)
             elif file_type == 'csv':
                 path = os.path.join(out, f'{filename}.csv')
-                df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))
+                df.to_csv(path, index=False, mode=mode, header=(mode == 'w'))
             else:
                 raise ValueError(f"Filetype {file_type} not implemented yet")
         except (OSError, IOError) as e:

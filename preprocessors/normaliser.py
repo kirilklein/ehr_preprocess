@@ -75,6 +75,8 @@ class Normaliser():
             counter = 0
             # Iterate over chunks of the CSV file
             for chunk in tqdm(self.azure_processor.load_chunks(cfg.data), desc='Chunks'):
+                print(chunk.head())
+                chunk = chunk.reset_index(drop=True)
                 self.logger.info(f'Loaded {cfg.data.chunksize*counter}')
                 chunk_processed = self.process_chunk(chunk)
                 if counter == 0:
@@ -89,8 +91,6 @@ class Normaliser():
         return chunk
         
     def normalise(self, row):
-        print(row.columns)
-        print(row.head())
         if not row['CONCEPT'] in self.vocab:
             return row['RESULT']
         
