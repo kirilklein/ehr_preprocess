@@ -1,7 +1,7 @@
-test: true
+test: false
 env: azure
 run_name: normalise_labs
-save_name: med_diag_lab_proc_2024
+save_name: normalise_dir
 paths:
   output_dir: outputs/data
     

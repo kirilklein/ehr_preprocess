@@ -30,7 +30,6 @@ def my_app(config_name):
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join(cfg.paths.output_dir), datastore_name = cfg.data.data_store,
                     remote_path = join("DEEP_FETAL", "all_formatted_data_csv", cfg.save_name))
-        mount_context.stop()
         logger.info('Finished')
 
 if __name__=='__main__':

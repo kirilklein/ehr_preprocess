@@ -23,15 +23,19 @@ class Normaliser():
 
         # Load distribution data
         if 'dist_path' not in cfg.data:
+            dist = self.get_lab_dist()
+            dist_save_path = join(cfg.paths.output_dir, 'lab_val_dict.pt')
+            torch.save(dist, dist_save_path)
+            self.logger.info(f'Saved lab distribution to {dist_save_path}')
 
-
-        dist_path = join(self.cfg.data.dist_path)
-        dist_dataset = Dataset.File.from_files(path=(self.data_store, dist_path))
-        mount_context = dist_dataset.mount()
-        mount_context.start()
-        mount_point = mount_context.mount_point
-        dist = torch.load(join(mount_point, 'lab_val_dict.pt'), weights_only=True)
-        self.vocab = torch.load(join(mount_point, 'vocabulary.pt'), weights_only=True)        
+        else:
+            dist_path = join(self.cfg.data.dist_path)
+            dist_dataset = Dataset.File.from_files(path=(self.data_store, dist_path))
+            mount_context = dist_dataset.mount()
+            mount_context.start()
+            mount_point = mount_context.mount_point
+            dist = torch.load(join(mount_point, 'lab_val_dict.pt'), weights_only=True)
+            self.vocab = torch.load(join(mount_point, 'vocabulary.pt'), weights_only=True)        
 
         if self.normalisation_type == 'Min_max':
             # Gets the min max values for all concepts
@@ -91,7 +95,7 @@ class Normaliser():
                 counter += 1
 
     def get_lab_dist(self):
-        self.logger('Getting lab distribution')
+        self.logger.info('Getting lab distribution')
         cfg = self.cfg
         save_name = 'lab_val_dict.pt'
         lab_val_dict = {}
@@ -109,8 +113,7 @@ class Normaliser():
                     lab_val_dict[key] = values
             
             counter += 1
-        torch.save(lab_val_dict, save_name)
-        self.logger.info(f'Saved lab distribution to {save_name}')
+        return lab_val_dict
 
     def process_chunk(self, chunk):
         chunk['RESULT'] = chunk.apply(self.normalise, axis=1)
