@@ -22,6 +22,9 @@ class Normaliser():
         self.azure_processor = AzurePreprocessor(cfg, logger)
 
         # Load distribution data
+        if 'dist_path' not in cfg.data:
+
+
         dist_path = join(self.cfg.data.dist_path)
         dist_dataset = Dataset.File.from_files(path=(self.data_store, dist_path))
         mount_context = dist_dataset.mount()
@@ -87,15 +90,34 @@ class Normaliser():
                 
                 counter += 1
 
+    def get_lab_dist(self):
+        self.logger('Getting lab distribution')
+        cfg = self.cfg
+        save_name = 'lab_val_dict.pt'
+        lab_val_dict = {}
+        counter = 0
+        for chunk in tqdm(self.azure_processor.load_chunks(cfg.data), desc='Chunks'):
+            self.logger.info(f'Loaded {cfg.data.chunksize*counter}')
+            chunk['RESULT'] = pd.to_numeric(chunk['RESULT'], errors='coerce')
+            chunk = chunk.dropna(subset=['RESULT'])
+            grouped = chunk.groupby('CONCEPT')['RESULT'].apply(list).to_dict()
+
+            for key, values in grouped.items():
+                if key in lab_val_dict:
+                    lab_val_dict[key].extend(values)
+                else:
+                    lab_val_dict[key] = values
+            
+            counter += 1
+        torch.save(lab_val_dict, save_name)
+        self.logger.info(f'Saved lab distribution to {save_name}')
+
     def process_chunk(self, chunk):
         chunk['RESULT'] = chunk.apply(self.normalise, axis=1)
         return chunk
         
     def normalise(self, row):
-        if not row['CONCEPT'] in self.vocab:
-            return row['RESULT']
-        
-        concept = self.vocab[row['CONCEPT']]
+        concept = row['CONCEPT']
         value = row['RESULT']        
         # Returns value if it is not numerical
         if not pd.notnull(pd.to_numeric(value, errors='coerce')):
