@@ -14,7 +14,7 @@ class Normaliser():
     def __init__(self, cfg, logger) -> None:
         self.cfg = cfg
         self.logger = logger
-        self.data_store =  datastore(cfg.paths.data_store)
+        self.data_store =  datastore(cfg.data.data_store)
         self.test = cfg.test
         self.logger.info(f"test {self.test}")
         self.firstRound = True
@@ -22,7 +22,7 @@ class Normaliser():
         self.azure_processor = AzurePreprocessor(cfg, logger)
 
         # Load distribution data
-        dist_path = join(self.cfg.paths.dist_path)
+        dist_path = join(self.cfg.data.dist_path)
         dist_dataset = Dataset.File.from_files(path=(self.data_store, dist_path))
         mount_context = dist_dataset.mount()
         mount_context.start()
@@ -74,13 +74,13 @@ class Normaliser():
         if not Path(join(cfg.paths.output_dir, save_name)).exists():
             counter = 0
             # Iterate over chunks of the CSV file
-            for chunk in tqdm(self.azure_processor.load_chunks(cfg.paths), desc='Chunks'):
+            for chunk in tqdm(self.azure_processor.load_chunks(cfg.data), desc='Chunks'):
                 self.logger.info(f'Loaded {cfg.data.chunksize*counter}')
                 chunk_processed = self.process_chunk(chunk)
                 if counter == 0:
-                    self.azure_processor.save(chunk_processed, cfg.paths,  f'concept.{save_name}', mode='w')
+                    self.azure_processor.save(chunk_processed, cfg.data,  f'concept.{save_name}', mode='w')
                 else:
-                    self.azure_processor.save(chunk_processed, cfg.paths, f'concept.{save_name}', mode='a')
+                    self.azure_processor.save(chunk_processed, cfg.data, f'concept.{save_name}', mode='a')
                 
                 counter += 1
 
