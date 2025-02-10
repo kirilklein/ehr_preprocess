@@ -1,14 +1,15 @@
-test: false
+test: true
 env: azure
 run_name: normalise_labs
 save_name: med_diag_lab_proc_2024
 paths:
   output_dir: outputs/data
-  file_path: ""DEEP_FETAL/all_formatted_data_csv"
+  file_path: "DEEP_FETAL/all_formatted_data_csv"
   dist_path: "BREAST_CANCER/processed_data/labs_distribution"
-  file_name: "concept.labtest.csv"
+  data_path: "concept.labtest.csv"
   save_name: "normed_labtest"
   file_type: csv
+  datastore: "workspaceblobstore"
   
 preprocessor:
   _target_: preprocessors.normaliser.Normaliser

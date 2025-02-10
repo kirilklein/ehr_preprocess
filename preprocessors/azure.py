@@ -323,7 +323,7 @@ class AzurePreprocessor():
     def save(self, df, cfg, filename, mode='w', i=None):
         self.logger.info(f"Save {filename}")
         out = self.cfg.paths.output_dir
-        file_type = cfg.file_type if 'file_type' in cfg else self.cfg.file_type
+        file_type = cfg.file_type if 'file_type' in cfg else self.cfg.paths.file_type
         try:
             os.makedirs(out, exist_ok=True)
             if file_type == 'parquet':
