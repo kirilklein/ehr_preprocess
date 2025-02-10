@@ -75,6 +75,8 @@ class Normaliser():
             counter = 0
             # Iterate over chunks of the CSV file
             for chunk in tqdm(self.azure_processor.load_chunks(cfg.data), desc='Chunks'):
+                if 'Column1' in chunk.columns:
+                    chunk = chunk.drop(columns='Column1')
                 print(chunk.head())
                 chunk = chunk.reset_index(drop=True)
                 self.logger.info(f'Loaded {cfg.data.chunksize*counter}')
