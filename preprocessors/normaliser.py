@@ -141,11 +141,11 @@ class Normaliser():
             (min_val, max_val) = self.min_max_vals[concept]
             if max_val != min_val: 
                 normalised_value = (value - min_val) / (max_val - min_val)
-                return max(0, min(1, normalised_value))
+                return round(max(0, min(1, normalised_value)),3)
             else:
-                return 0
+                return "UNIQUE"
         else:
-            return 0
+            return "N/A"
         
     def quantile(self, concept, value):
         if concept not in self.quantiles:
