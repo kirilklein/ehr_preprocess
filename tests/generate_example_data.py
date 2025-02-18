@@ -11,7 +11,8 @@ from constants import (
     DESCRIPTIONS, BODY_PARTS, 
     MEDICATION_NAMES, MED_TYPES, MED_UNITS, MED_ADMINISTRATIONS, MED_INFUSION_SPEED, MED_INFUSION_DOSE, MED_ACTIONS, 
     PROCEDURE_NAMES,
-    LAB_TESTS, LAB_RESULTS, LAB_ANTIBIOTICS, LAB_SENSITIVITIES, LAB_ORGANISMS
+    LAB_TESTS, LAB_RESULTS, LAB_ANTIBIOTICS, LAB_SENSITIVITIES, LAB_ORGANISMS,
+    FORL_TYPE, FORL_SPECIALTY, FORL_REGIONS, FORL_SHAK
 )
 
 DEFAULT_N_CONCEPTS = 5 # concepts per patient
@@ -52,7 +53,7 @@ def generate_diagnosis_csv(save_dir, hashes, birthdates, deathdates, seed=0):
         if diag_codes is not None:
             n = len(diag_codes)
         else:
-            diag_codes = generate_medical_code(n, "D")
+            diag_codes = generate_medical_code(n, prefix="D")
         for i in range(n):
             phrase = f"{random.choice(DESCRIPTIONS)} of the {random.choice(BODY_PARTS)}"
             if random.random() > 0.3:  # 70% chance to include (Dxxx)
@@ -178,7 +179,6 @@ def generate_patients_info(n_patients):
 
     # Generate random PIDs
     hashes = generate_cpr_hash(n_patients)
-
     return pd.DataFrame(
         {
             "CPR_hash": hashes,
@@ -188,18 +188,91 @@ def generate_patients_info(n_patients):
         }
     )
 
+def generate_register_diagnosis_csv(save_dir, mapping, kont, seed=0, n_concepts=3):
+    pids = kont['PID'].tolist()
+    pids_lst = np.tile(pids, n_concepts)
+    dw_eks_kontakt = np.tile(kont['dw_ek_kontakt'].tolist(), n_concepts)
+    n_total = len(pids_lst)
+    df = pd.DataFrame({
+        'dw_ek_kontakt': dw_eks_kontakt,
+        'diagnosekode': generate_medical_code(n_total, prefix="D"),
+        'diagnosetype': [random.choices(['A', 'B', '+'], weights=[15,80,5])[0] for _ in range(n_total)],
+        'senere_afkraeftet': [random.choices(['Nej', 'Ja'], weights = [99,1])[0] for _ in range(n_total)],
+        'lpindberetningssystem': ['LPR3' for _ in range(n_total)],
+    })
+    os.makedirs(save_dir, exist_ok=True)
+    df.to_csv(f'{save_dir}/concept.register_diagnosis.csv', index=False)    
 
 def generate_forloeb(mapping_merged):
-    pids = mapping[[mapping['forloeb'] == True]][['PID']]
-    
-    pids_merged = pd.merge(pids, patient_info, on='CPR_hash')
-    mask = pids_merged['Fødselsdato'].isna()
-    pids_merged[mask, 'Fødselsdato'] = np.random.choice(np.arange(start_birthdate, end_birthdate, dtype="datetime64[D]"), n_patients)
-    
+    filtered_pids = mapping_merged[(mapping_merged['forloeb'] == True) & (mapping_merged['CPR_hash'].isna())]['PID'].values
+    subset_size = int(0.1 * len(filtered_pids))
+    random_subset = np.random.choice(filtered_pids, subset_size, replace=False)
+    pids_to_nan = random_subset.tolist()
+    forloeb_pids = mapping_merged[mapping_merged['forloeb'] == True][['PID', 'Fødselsdato', 'Dødsdato']].copy()
+    forloeb_pids['PID'] = forloeb_pids['PID'].apply(lambda x: x if x not in pids_to_nan else 'nan') # there are weird nan strings in this column
+
+    n_pids = len(forloeb_pids)
+    dates_start = generate_timestamps(forloeb_pids['Fødselsdato'], forloeb_pids['Dødsdato'], n_pids)
+    durations = np.random.randint(1, 365, n_pids)
+    dates_end = dates_start + pd.to_timedelta(durations, unit='d')
+
     forloeb = pd.DataFrame({
-        'CPR_hash': np.random.choice(mapping['CPR_hash'], size=n, replace=True),
-        'forloeb': [random.choice([True, False]) for _ in range(n)],
-        'forloeb_start': generate_timestamps(mapping['Fødselsdato'], mapping['Dødsdato'], n),
+        'dw_ek_forloeb': np.arange(1, n_pids+1),
+        'dw_ek_helbredsforloeb': np.random.randint(1e9, 1e10, n_pids),
+        'sorenhed_ans': np.random.randint(1e11, 1e12, n_pids),
+        'enhedstype_ans': np.random.choice(FORL_TYPE, n_pids),
+        'hovedspeciale_ans':  np.random.choice(FORL_SPECIALTY, n_pids),
+        'region_ans': np.random.choice(FORL_REGIONS, n_pids),
+        'shak_sgh_ans': np.random.randint(1e6, 1e7, n_pids),
+        'shak_afd_ans': np.random.randint(1e8, 1e9, n_pids),
+        'shak_afs_ans': np.random.choice(FORL_SHAK, n_pids),
+        'dato_start': dates_start.date,
+        'tidspunkt_start': dates_start.time,
+        'dato_slut': dates_end.date,
+        'tidspunkt_slut': dates_end.time,
+        'henvisningsaarsag': generate_medical_code(n_pids, prefix="D"),
+        'lprindberetningssystem': ['LPR3' for _ in range(n_pids)],
+        'PID': forloeb_pids['PID'].tolist()
+    })
+    return forloeb
+
+def generate_kontakter(mapping_merged, forloeb, n_visits=3):
+    filtered_pids = mapping_merged[(mapping_merged['kontakter'] == True) & (mapping_merged['CPR_hash'].isna())]['PID'].values
+    subset_size = int(0.1 * len(filtered_pids))
+    random_subset = np.random.choice(filtered_pids, subset_size, replace=False)
+    pids_to_nan = random_subset.tolist()
+    kont_pids = mapping_merged[mapping_merged['forloeb'] == True][['PID', 'Fødselsdato', 'Dødsdato']].copy()
+    kont_pids['PID'] = kont_pids['PID'].apply(lambda x: x if x not in pids_to_nan else 'nan') # there are weird nan strings in this column
+
+    n_total_visits = len(kont_pids)*n_visits
+
+    # Expand to ensure multiple visits
+    pids = kont_pids['PID'].tolist()
+    pids_lst = np.tile(pids, n_visits)
+    birthdates = np.tile(kont_pids['Fødselsdato'], n_visits)
+    deathdates = np.tile(kont_pids['Dødsdato'], n_visits)
+    dw_eks_forloeb = np.tile(forloeb['dw_ek_forloeb'].tolist(), n_visits)
+    dates_start = generate_timestamps(birthdates, deathdates, n_total_visits)
+    durations = np.random.randint(15, 480, n_total_visits)
+    dates_end = dates_start + pd.to_timedelta(durations, unit='m')
+
+    kontakter = pd.DataFrame({
+        'dw_ek_kontakt': np.arange(1, n_total_visits+1),
+        'dw_ek_forloeb': dw_eks_forloeb,
+        'sorenhed_ans': np.random.randint(1e11, 1e12, n_total_visits),
+        'enhedstype_ans': np.random.choice(FORL_TYPE, n_total_visits),
+        'hovedspeciale_ans':  np.random.choice(FORL_SPECIALTY, n_total_visits),
+        'region_ans': np.random.choice(FORL_REGIONS, n_total_visits),
+        'shak_sgh_ans': np.random.randint(1e6, 1e7, n_total_visits),
+        'dato_start': dates_start.date,
+        'tidspunkt_start': dates_start.time,
+        'dato_slut': dates_end.date,
+        'tidspunkt_slut': dates_end.time, 
+        'aktionsdiagnose': generate_medical_code(n_total_visits, prefix="D"),
+        'lprindberetningssystem': ['LPR3' for _ in range(n_total_visits)],
+        'PID': pids_lst
+    })
+    return kontakter
 
 def generate_map_forl_kont(save_dir, hashes, patients_info, seed=0):
     pts_with_register_data = np.random.choice(hashes, size=len(hashes) // 2, replace=False)
@@ -232,6 +305,11 @@ def generate_map_forl_kont(save_dir, hashes, patients_info, seed=0):
         size=mask.sum()
     )
     mapping_merged['Dødsdato'] = mapping_merged['Dødsdato'].fillna(np.datetime64("2025-01-01"))
+    mapping_merged['Dødsdato'] =  pd.to_datetime(mapping_merged['Dødsdato'])
+    mapping_merged['Fødselsdato'] =  pd.to_datetime(mapping_merged['Fødselsdato'])
+    forl = generate_forloeb(mapping_merged)
+    kont = generate_kontakter(mapping_merged, forl, n_visits=3)
+    return mapping, forl, kont
 
 def main_write(n_patients=DEFAULT_N, n_concepts=DEFAULT_N_CONCEPTS, write_dir=DEFAULT_WRITE_DIR):
     np.random.seed(0)
@@ -253,7 +331,8 @@ def main_write(n_patients=DEFAULT_N, n_concepts=DEFAULT_N_CONCEPTS, write_dir=DE
     # generate_medication_csv(write_dir, hashes, birthdates, deathdates)
     # generate_procedure_csv(write_dir, hashes, birthdates, deathdates)
     # generate_labtest_csv(write_dir, hashes, birthdates, deathdates)
-    generate_map_forl_kont(write_dir, hashes, patients_info)
+    mapping, forl, kont = generate_map_forl_kont(write_dir, hashes, patients_info)
+    generate_register_diagnosis_csv(write_dir, mapping, kont, n_concepts=n_concepts)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

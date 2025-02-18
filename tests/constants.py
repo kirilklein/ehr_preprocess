@@ -1,3 +1,9 @@
+"""  
+Lab-related constants for testing purposes.  
+Note: All data has been anonymized and any resemblance to actual patient information is coincidental.  
+Version: 2024.1  
+"""  
+
 DESCRIPTIONS = ["syndrome", "infection", "disorder", "acute", "chronic", "complication", "neoplasm", 
         "unspecified", "degeneration", "injury", "abnormality", "malformation", "failure", "collapse"]
 BODY_PARTS = ["lung", "brain", "heart", "kidney", "liver", "nerve", "muscle", "stomach", "skin", "eye", "ear"]
@@ -133,3 +139,34 @@ LAB_ANTIBIOTICS = [None, 'Cefuroxim', 'Piperacillin + Tazobactam', 'Cefotaxim',
 LAB_SENSITIVITIES = [None, 'Resistent', 'Følsom', 'Intermediær']
 LAB_ORGANISMS = [None, 'Haemophilus influenzae', 'Proteus mirabilis',
        'Escherichia coli', 'Staphylococcus aureus']
+
+
+FORL_TYPE = ['klinisk enhed', 'billeddiagnostisk enhed', 'administrativ enhed',
+       'akutmodtageenhed', 'skadestue',
+       'fysioterapi- og ergoterapiklinik', 'supplerende oplysninger',
+       'intensivenhed', 'hospital', 'speciallægepraksis', 'privat',
+       'kosmetisk klinik', 'palliativ enhed', 'almen lægepraksis']
+FORL_SPECIALTY = ['neurologi', 'radiologi', 'almen medicin', 'reumatologi',
+       'intern medicin', 'gynækologi og obstetrik', 'klinisk onkologi',
+       'lungesygdomme', 'akutmedicin', 'kardiologi', 'infektionsmedicin',
+       'ortopædisk kirurgi', 'oto-rhino-laryngologi', 'oftalmologi',
+       'geriatri', 'Ukendt', 'odontologi', 'klinisk genetik',
+       'klinisk fysiologi og nuklearmedicin']
+FORL_REGIONS = ['1082', '1084', '1083', '1085', '1081']
+FORL_SHAK = ['Ukendt', '800153P', '4202040', '8001359', '6008229', '8003027',
+       '8003468', '8001089', '6007210', '5501029', '8001047', '8001129',
+       '7603468', '8003619', '7603021', '8001534', '8001289', '6010010',
+       '1520010', '2048011', '800153G', '800104E', '800302E', '6008031',
+       '5000080', '8026078', '8001109', '1529010', '1517090', '6008030',
+       '8001031', '800307E', '8001101', '8001533', '1517230', '8003077',
+       '8001589', '8001176', '8001591', '7032010', '8001039', '8001279',
+       '4202706', '8001191', '1517010', '7603116', '8001539', '8001127',
+       '1517210', '2048012', '7603049', '2023010', '1710010', '6010120',
+       '5000081', '7603041', '8001468', '4202707', '800153I', '8001461',
+       '4202110', '8001209', '8001181', '8001099', '8003039', '8003209',
+       '8003049', '800153A', '1517205', '8001509', '8001081', '8001369',
+       '8001199', '8001608', '7106010', '8003461', '1742010', '5000070',
+       '1411626', '8001091', '6007020', '8001316', '8001311', '8001179',
+       '8001149', '1517200', '8001531', '8001609', '8001538', '7108010',
+       '8001269', '800302F', '8026089', '8001226', '8001337', '800153M',
+       '8001126', '8003649', '1517050', '8001319', '1340010', '8001086']
