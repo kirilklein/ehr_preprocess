@@ -50,13 +50,3 @@ class Config(dict):
             super(Config, self).__delattr__(name)
 
 
-def get_datastore():
-    """Initializes workspase and gets datastor and dump_path"""
-    subscription_id = 'f8c5aac3-29fc-4387-858a-1f61722fb57a'
-    resource_group = 'forskerpl-n0ybkr-rg'
-    workspace_name = 'forskerpl-n0ybkr-mlw'
-    
-    workspace = Workspace(subscription_id, resource_group, workspace_name)
-    datastore = Datastore.get(workspace, "researcher_data")
-    dump_path = join("data-backup", "SP-dumps", "2022-10-27")
-    return datastore, dump_path

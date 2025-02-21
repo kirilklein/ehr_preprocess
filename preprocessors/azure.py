@@ -1,22 +1,24 @@
+
 import pandas as pd
 import os
 from azureml.core import Dataset
 from tqdm import tqdm
-import hashlib
 from os.path import join
 from datetime import timedelta
-
+from azure_run import datastore
+from . import formatters
+import hashlib 
+from .load import Config
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 class AzurePreprocessor():
     # load data in dask
-    def __init__(self, cfg, logger, datastore, dump_path) -> None:
+    def __init__(self, cfg, logger) -> None:
         self.cfg = cfg
         self.logger = logger
-        self.datastore =  datastore
-        self.dump_path = dump_path if dump_path is not None else None
         self.test = cfg.test
         self.logger.info(f"test {self.test}")
-        self.removed_concepts = {k:0 for k in self.cfg.concepts} # count concepts that are removed
         self.initial_patients = set()
         self.formatted_patients = set()
         self.adm_file = None
@@ -25,53 +27,56 @@ class AzurePreprocessor():
         self.patients_info()
         self.format_concepts()
 
-    def filter_dates(self):
-        self.logger.info("Filter dates")
-        for concept_type, concept_config in tqdm(self.cfg.concepts.items(), desc="Concepts"):
-            if concept_type not in ['diagnosis', 'medication', 'labtest', 'procedure']:
-                raise ValueError(f'{concept_type} not implemented yet')
-            self.logger.info(f"INFO: Filter {concept_type}")            
-            df = self.load_pandas(concept_config)
-            if self.test:
-                df = df.sample(10000)
-            df = self.select_columns(df, concept_config)
-            df = self.change_dtype(df, concept_config)
-            df = self.filter_dates_pipeline(df, concept_config)
-            self.save(df, concept_config, f'concept.{concept_type}')
-
-    def iterate_through_file(self, concept_type, concept_config, first=True):
-        for chunk in tqdm(self.load_chunks(concept_config), desc='Chunks'):
-            # process each chunk here.
-            chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config)
-            if first:
-                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w')
-                first = False
-            else:
-                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='a')
-
     def format_concepts(self):
         """Loop over all top-level concepts (diagnosis, medication, procedures, etc.) and call processing"""
         self.get_admissions() # to assign admission_id
-        for concept_type, concept_config in tqdm(self.cfg.concepts.items(), desc="Concepts"):
-            if concept_type not in ['diagnosis', 'medication', 'labtest', 'procedure']:
-                raise ValueError(f'{concept_type} not implemented yet')
-            self.logger.info(f"INFO: Preprocess {concept_type}")
-            first = True
 
-            if isinstance(concept_config.filename, list):
-                for file_name in concept_config.filename:
-                    concept_config.filename = file_name
-                    self.iterate_through_file(concept_type, concept_config, first=first)
-                    first=False
+        # Getting SP concepts
+        self.process_concept_group('SP_concepts', ['diagnosis', 'medication', 'labtest', 'procedure'])
+        self.process_concept_group('register_concepts', [
+            'register_diagnosis', 'register_medication', 'register_procedures_surgical', 'register_procedures_non_surgical'
+        ])
+        self.save(self.adm_file, self.cfg.admissions, 'admissions')
+
+    def process_concept_group(self, group_name, allowed_types):
+        if group_name in self.cfg:
+            self.logger.info(f"Load {group_name}")
+            kwargs = {}
+            if group_name == 'register_concepts':
+                forl, kont, mapping = self.get_register_concepts()
+                kwargs = {'forl': forl, 'kont': kont, 'mapping': mapping}
+            
+            for concept_type, concept_config in tqdm(getattr(self.cfg, group_name).types.items(), desc="Concepts"):
+                if concept_type not in allowed_types:
+                    raise ValueError(f'{concept_type} not implemented yet')
+                self.logger.info(f"INFO: Preprocess {concept_type}")
+                first = True
+                concept_config.data_path = join(getattr(self.cfg, group_name).dump_path, concept_config.filename)
+                concept_config.data_store = getattr(self.cfg, group_name).data_store
+                if isinstance(concept_config.filename, list):
+                    for file_name in concept_config.filename:
+                        concept_config.filename = file_name
+                        self.iterate_through_file(concept_type, concept_config, first=first, kwargs=kwargs)
+                        first=False
+                else:
+                    self.iterate_through_file(concept_type, concept_config, kwargs=kwargs)
+
+
+    def iterate_through_file(self, concept_type, concept_config, first=True, kwargs=None):
+        if kwargs is None:
+            kwargs = {}
+        for i, chunk in enumerate(tqdm(self.load_chunks(concept_config), desc='Chunks')):
+            chunk_processed = self.concepts_process_pipeline(chunk, concept_type, concept_config, kwargs)
+            if first:
+                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='w', i=i)
+                first = False
             else:
-                self.iterate_through_file(concept_type, concept_config)
-        self.save_adm(self.adm_file)
+                self.save(chunk_processed, concept_config, f'concept.{concept_type}', mode='a', i=i)
 
-
-    def concepts_process_pipeline(self, concepts, concept_type, cfg):
+    def concepts_process_pipeline(self, concepts, concept_type, cfg, kwargs={}):
         """Process concepts"""
-        formatter = getattr(self, f"format_{concept_type}")
-        concepts = formatter(concepts, cfg)
+        formatter = getattr(formatters, f"format_{concept_type}")
+        concepts = formatter(concepts, cfg, **kwargs)
         self.initial_patients = self.initial_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.initial_patients)} before cleaning")
         self.logger.info(f"{len(concepts)} concepts")
@@ -81,7 +86,7 @@ class AzurePreprocessor():
         self.logger.info(f"{len(concepts)} concepts after dropping duplicates nans")
         filter_date = self.cfg.filtering.get('filter_date', False) if hasattr(self.cfg, 'filtering') and self.cfg.filtering else False
         if filter_date:
-            concepts = self.filter_dates_pipeline(concepts, filter_date)
+            concepts = self.filter_dates(concepts, filter_date)
         self.logger.info(f"{len(concepts)} concepts after filtering on date")
         self.formatted_patients = self.formatted_patients | set(concepts.PID.unique())
         self.logger.info(f"{len(self.formatted_patients)} after cleaning")
@@ -89,52 +94,20 @@ class AzurePreprocessor():
         concepts = self.add_admission_id(concepts)
         return concepts
     
-    def filter_dates_pipeline(self, chunk, filter_date):
+    def filter_dates(self, chunk, filter_date):
         chunk['TIMESTAMP'] = pd.to_datetime(chunk['TIMESTAMP'])
         filter_date_dt = pd.to_datetime(filter_date)
         filtered_chunk = chunk[chunk['TIMESTAMP'] < filter_date_dt]
         return filtered_chunk
 
-    @staticmethod
-    def format_diagnosis(diag, cfg):
-        # Search code in diagnoses. If there is no diagnosis code, use the diagnosis extracted from the text
-        diag['code'] = diag['Diagnose'].str.extract(r'\((D.*?)\)', expand=False)
-        if 'fill_diags' in cfg and cfg['fill_diags']:
-            diag['code'] = diag['code'].fillna(diag['Diagnose'])
-        diag['CONCEPT'] = diag.Diagnosekode.fillna(diag.code)
-        diag = diag.drop(['code', 'Diagnose', 'Diagnosekode'], axis=1)
-        diag = diag.rename(columns={'CPR_hash':'PID', 'Noteret_dato':'TIMESTAMP'})
-        return diag
-
-    @staticmethod
-    def format_procedure(proc, cfg):
-        proc['CONCEPT'] = proc['ProcedureCode'].str.replace(' ', '')
-        proc = proc.drop(['ProcedureCode'], axis=1)
-        proc = proc.rename(columns={'CPR_hash':'PID', 'ServiceDatetime':'TIMESTAMP'})
-        proc['CONCEPT'] = proc['CONCEPT'].map(lambda x: 'P'+x)
-        return proc
-
-    @staticmethod
-    def format_labtest(labs, cfg):
-        labs = labs.rename(columns={'CPR_hash':'PID', 'BestOrd':'CONCEPT', 'Bestillingsdato': 'TIMESTAMP', 'Resultatværdi':'RESULT'})
-        labs['CONCEPT'] = labs['CONCEPT'].map(lambda x: 'LAB_'+x)
-        return labs
-    
-    @staticmethod
-    def format_medication(med, cfg):
-        med.loc[:, 'CONCEPT'] = med.ATC.fillna('Ordineret_lægemiddel')
-        med.loc[:, 'TIMESTAMP'] = med.Administrationstidspunkt.fillna("Bestillingsdato")
-        med = med.rename(columns={'CPR_hash':'PID'})
-        med = med[['PID','CONCEPT','TIMESTAMP']]
-        med['CONCEPT'] = med['CONCEPT'].map(lambda x: 'M'+x)
-        return med
-
     def patients_info(self):
         """Load patients info and rename columns"""
         self.logger.info("Load patients info")
+        config = self.cfg.patients_info
+        self.cfg.patients_info.data_path = join(config.dump_path, config.filename)
         df = self.load_pandas(self.cfg.patients_info)
         if self.test:
-            df = df.sample(10000)
+            df = df.sample(500000)
         df = self.select_columns(df, self.cfg.patients_info)
         # Convert info dict to dataframe
         self.save(df, self.cfg.patients_info, 'patients_info')
@@ -150,11 +123,8 @@ class AzurePreprocessor():
         out_adm, self.adm_file = self.assign_admission_id(out_adm, self.adm_file)
         # Combine dataframes
         result_df = pd.concat([in_adm, out_adm])
-
         result_df = result_df.drop(columns=['TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE'])
-
         return result_df.reset_index(drop=True)
-
 
     @staticmethod
     def filter_records_with_exisiting_admission(concept_df, adm_df):
@@ -206,7 +176,8 @@ class AzurePreprocessor():
 
         # Generate unique admission IDs
         df_sorted['ADMISSION_ID'] = df_sorted.apply(
-            lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
+            lambda row: 
+            hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
         )
 
         new_admissions = df_sorted.groupby(['PID', 'NEW_ADMISSION']).agg(
@@ -218,20 +189,16 @@ class AzurePreprocessor():
         new_admissions['ADMISSION_ID'] = new_admissions.apply(
             lambda row: hashlib.sha256((str(row['PID']) + '_' + str(row['NEW_ADMISSION'])).encode()).hexdigest(), axis=1
         )
-
-        adm_file = pd.concat([adm_file, new_admissions[['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]], ignore_index=True)
+        new_admissions = new_admissions.loc[:, ['PID', 'ADMISSION_ID', 'TIMESTAMP_START', 'TIMESTAMP_END', 'TYPE']]
+        adm_file = pd.concat([adm_file, new_admissions], ignore_index=True)
 
         return df_sorted.drop(columns=['TIMESTAMP_DIFF', 'NEW_ADMISSION']), adm_file
-    
-    def save_adm(self, adm_file):
-        """
-        Save the admission files to the output directory.
-        """
-        self.save(adm_file, self.cfg.admissions, 'admissions')
 
     def get_admissions(self):
         """Load admission dataframe and create an ADMISSION_ID column. Then combined all admission within 24 hours."""
         self.logger.info("Load admissions")
+        config = self.cfg.admissions
+        self.cfg.admissions.data_path = join(config.dump_path, config.filename)
         adm = self.load_pandas(self.cfg.admissions)
         adm['Flyt_ind'] = pd.to_datetime(adm['Flyt_ind'])
         adm['Flyt_ud'] = pd.to_datetime(adm['Flyt_ud'])
@@ -252,7 +219,10 @@ class AzurePreprocessor():
                 # No overlap within 24 hours, add the current admission to merged_admissions and start a new current admission
                 merged_admissions.append(current_row.to_dict())
                 current_row = row
-        merged_admissions.append(current_row.to_dict())
+
+        # Add the last current_row to merged_admissions
+        if current_row is not None:
+            merged_admissions.append(current_row.to_dict())
 
         events = []
         for admission in merged_admissions:
@@ -261,19 +231,35 @@ class AzurePreprocessor():
                            'TIMESTAMP_END': admission['Flyt_ud'],
                            'TYPE': 'IN'})
         final_df = pd.DataFrame(events)
-        final_df['ADMISSION_ID'] = self.assign_hash(final_df)
+        final_df['ADMISSION_ID'] = final_df.apply(lambda x: hashlib.sha256(str(x).encode()).hexdigest(), axis=1)
         self.adm_file = final_df
-    
-    @staticmethod
-    def assign_hash(df):
-        return df.apply(lambda x: hashlib.sha256(str(x).encode()).hexdigest(), axis=1)
 
-    def change_dtype(self, df, cfg):
-        """Change column dtype"""
-        if 'dtypes' in cfg:
-            for col, dtype in cfg.dtypes.items():
-                df[col] = df[col].astype(dtype)
-        return df
+    def get_register_concepts(self):
+        """Load register concepts"""
+        self.logger.info("Load register concepts")
+        config = self.cfg.register_concepts
+        mapping = self.load_pandas(Config({'data_path': join(config.mapping_file), 'data_store': config.data_store}))
+        forl = self.load_pandas(Config({'data_path': join(config.dump_path, config.forloeb_file), 'data_store': config.data_store}))
+        kont = self.load_pandas(Config({'data_path': join(config.dump_path, config.kontakt_file), 'data_store': config.data_store}))
+
+        forl = forl.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
+        forl = forl.dropna(subset=['CPR_hash'])
+        forl = forl.loc[:, ['dw_ek_forloeb', 'dw_ek_helbredsforloeb', 
+                    'dato_start', 'tidspunkt_start', 
+                    'CPR_hash', 'henvisningsaarsag']]
+        forl['TIMESTAMP_START'] = pd.to_datetime(forl['dato_start'] + ' ' + forl['tidspunkt_start'])
+        forl = forl.drop(columns=['dato_start', 'tidspunkt_start'])
+
+        kont = kont.merge(mapping[["PID", "CPR_hash"]], on='PID', how='left')
+        kont = kont.dropna(subset=['CPR_hash'])
+        kont = kont.loc[:, ['dw_ek_kontakt', 'dw_ek_forloeb', 
+                    'dato_start', 'tidspunkt_start', 
+                    'CPR_hash', 'aktionsdiagnose']]
+        kont['TIMESTAMP_START'] = pd.to_datetime(kont['dato_start'] + ' ' + kont['tidspunkt_start'])
+        kont = kont.drop(columns=['dato_start', 'tidspunkt_start'])
+
+        mapping = mapping.dropna(subset=['CPR_hash'])
+        return forl, kont, mapping
 
     def select_columns(self, df, cfg):
         """Select and Rename columns"""
@@ -282,12 +268,12 @@ class AzurePreprocessor():
         df = df[selected_columns]
         df = df.rename(columns={old: new for old, new in zip(selected_columns, cfg.names)})
         return df
-        
+
     def load_pandas(self, cfg: dict):
         ds = self.get_dataset(cfg)
         df = ds.to_pandas_dataframe()
         return df
-    
+
     def load_dask(self, cfg: dict):
         ds = self.get_dataset(cfg)
         df = ds.to_dask_dataframe()
@@ -307,26 +293,44 @@ class AzurePreprocessor():
                 break
             i += 1
             yield df
-            
+
     def get_dataset(self, cfg: dict):
-        file_path = join(self.dump_path, cfg.filename) if self.dump_path is not None else cfg.filename
-        print(file_path)
-        ds = Dataset.Tabular.from_parquet_files(path=(self.datastore,file_path))
+        file_path = cfg.data_path
+        ds_store = datastore(cfg.data_store)
+
+        if 'parquet' in file_path:
+            ds = Dataset.Tabular.from_parquet_files(path=(ds_store,file_path))
+        elif ".csv" in file_path or ".asc" in file_path:
+            encodings = ['iso88591', 'utf8']
+            for encoding in encodings:
+                try:
+                    ds = Dataset.Tabular.from_delimited_files(path=(ds_store, file_path), separator=';', encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                raise ValueError("Unable to read the file with the provided encodings.")
         if 'keep_cols' in cfg:
             ds = ds.keep_columns(columns=cfg.keep_cols)
         if self.test:
-            ds = ds.take(10000)
+            ds = ds.take(500000)
         return ds
     
-    def save(self, df, cfg, filename, mode='w'):
+
+
+    def save(self, df, cfg, filename, mode='w', i=None):
         self.logger.info(f"Save {filename}")
         out = self.cfg.paths.output_dir
         file_type = cfg.file_type if 'file_type' in cfg else self.cfg.file_type
         try:
             os.makedirs(out, exist_ok=True)
             if file_type == 'parquet':
+                if i is not None:
+                    out = join(out, filename)
+                    filename = i 
+                    os.makedirs(out, exist_ok=True)
                 path = os.path.join(out, f'{filename}.parquet')
-                df.to_parquet(path)
+                df.to_parquet(path, index=False)
             elif file_type == 'csv':
                 path = os.path.join(out, f'{filename}.csv')
                 df.to_csv(path, index=True, mode=mode, header=(mode == 'w'))

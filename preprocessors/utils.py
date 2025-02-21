@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-
 import pandas as pd
 
 
@@ -84,3 +83,10 @@ def timing_function(function):
         print(f'{function.__qualname__!r}: {(t2 - t1)/60:.1f} mins')
         return result
     return wrapper
+
+def change_dtype(df, cfg):
+    """Change column dtype"""
+    if 'dtypes' in cfg:
+        for col, dtype in cfg.dtypes.items():
+            df[col] = df[col].astype(dtype)
+    return df
